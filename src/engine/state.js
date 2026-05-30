@@ -16,19 +16,99 @@ export const S = {
 // ===========================================================================
 const SAVE_KEY = 'ghostcatchers-v3'
 
+// Build a fresh profile, tolerating partial/corrupt incoming data. Seeds ALL
+// the fields later features (shop, avatars, settings) will use so we never need
+// a second migration.
+function makeProfile(p = {}) {
+  return {
+    name: typeof p.name === 'string' && p.name ? p.name : 'Player',
+    avatar: p.avatar === 'boy' ? 'boy' : 'girl',
+    unlocked: Number.isFinite(p.unlocked) ? p.unlocked : 0,
+    stars: (p.stars && typeof p.stars === 'object') ? p.stars : {},
+    points: Number.isFinite(p.points) ? p.points : 0,
+    owned: Array.isArray(p.owned) && p.owned.length ? p.owned : ['none'],
+    hat: typeof p.hat === 'string' && p.hat ? p.hat : 'none',
+    settings: {
+      vibe: (p.settings && p.settings.vibe) || 'justright',
+      playMinutes: (p.settings && Number.isFinite(p.settings.playMinutes)) ? p.settings.playMinutes : 0,
+    },
+  }
+}
+
+function defaultSave() {
+  return {
+    version: 2,
+    activeProfile: 'p1',
+    profiles: {
+      p1: makeProfile({ name: 'Mia', avatar: 'girl' }),
+      p2: makeProfile({ name: 'Sam', avatar: 'boy' }),
+    },
+  }
+}
+
 function loadSave() {
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY))
     if (s && typeof s === 'object') {
-      return { unlocked: s.unlocked || 0, stars: s.stars || {} }
+      // Already the new (v2+) profiles shape — sanitise and keep.
+      if (s.profiles && typeof s.profiles === 'object') {
+        const profiles = {}
+        for (const [id, p] of Object.entries(s.profiles)) profiles[id] = makeProfile(p)
+        const ids = Object.keys(profiles)
+        if (ids.length === 0) return defaultSave()
+        const active = (s.activeProfile && profiles[s.activeProfile]) ? s.activeProfile : ids[0]
+        return { version: 2, activeProfile: active, profiles }
+      }
+      // Old flat v1 shape (unlocked/stars at top level) → wrap into p1, keep progress.
+      return {
+        version: 2,
+        activeProfile: 'p1',
+        profiles: {
+          p1: makeProfile({ name: 'Player 1', avatar: 'girl', unlocked: s.unlocked, stars: s.stars }),
+        },
+      }
     }
   } catch { /* ignore */ }
-  return { unlocked: 0, stars: {} }
+  // Brand-new player: seed two default profiles.
+  return defaultSave()
 }
 export function writeSave() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)) } catch { /* ignore */ }
 }
 export const save = loadSave()
+
+// ---------------------------------------------------------------------------
+// Profiles — always return a valid profile, even if activeProfile is bad.
+// ---------------------------------------------------------------------------
+export function currentProfile() {
+  const p = save.profiles[save.activeProfile]
+  if (p) return p
+  const firstId = Object.keys(save.profiles)[0]
+  save.activeProfile = firstId
+  return save.profiles[firstId]
+}
+
+export function setActiveProfile(id) {
+  if (save.profiles[id]) {
+    save.activeProfile = id
+    writeSave()
+  }
+}
+
+// Create a new profile (cap at 3). Returns the new id, or null if at the cap.
+export function addProfile({ name, avatar } = {}) {
+  const ids = Object.keys(save.profiles)
+  if (ids.length >= 3) return null
+  let id = 'p1'
+  for (let n = 1; n <= 99; n++) { id = 'p' + n; if (!save.profiles[id]) break }
+  save.profiles[id] = makeProfile({ name, avatar })
+  writeSave()
+  return id
+}
+
+export function listProfiles() {
+  return Object.entries(save.profiles).map(([id, p]) => ({ id, ...p }))
+}
 
 // ===========================================================================
 // New game / per-room state factory

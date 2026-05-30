@@ -110,6 +110,14 @@ async function main() {
   await step('Play button present', `!!document.getElementById('playBtn')`)
   await step('click Play', `(document.getElementById('playBtn').click(), 'ok')`)
   await sleep(400)
+  // "Who's playing?" picker now sits between Play and level-select — tolerate
+  // its presence (pick the first kid), no-op if it's absent.
+  await step('pick profile (if shown)', `(() => {
+    const c = document.querySelector('.profile-card[data-id]')
+    if (c) { c.click(); return 'picked' }
+    return 'no-picker'
+  })()`)
+  await sleep(400)
   await step('room tiles shown', `document.querySelectorAll('.lvl').length`)
   await step('enter first room', `(document.querySelector('.lvl:not(.locked)').click(), 'ok')`)
   await sleep(800)

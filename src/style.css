@@ -339,6 +339,64 @@ canvas {
 
 .hint { font-size: 13px; opacity: .7; margin-top: 10px; }
 
+/* "Who's playing?" profile picker */
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 22px 0 6px;
+}
+@media (max-width: 560px) {
+  .profile-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.profile-card {
+  background: linear-gradient(#5a4a82, #463670);
+  border: 5px solid #2a1a4a;
+  border-radius: 24px;
+  padding: 20px 10px 16px;
+  cursor: pointer;
+  box-shadow: 0 6px 0 #1a0f30;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transition: transform .08s;
+}
+.profile-card:active { transform: translateY(3px); box-shadow: 0 3px 0 #1a0f30; }
+.profile-card .pc-avatar { font-size: clamp(48px, 14vw, 80px); line-height: 1; }
+.profile-card .pc-avatar img.emoji { width: 1em; height: 1em; vertical-align: -0.15em; }
+.profile-card .pc-name { font-size: clamp(18px, 4vw, 26px); font-weight: 900; text-shadow: 0 2px 0 #1a0f30; }
+.profile-card .pc-stars { font-size: clamp(14px, 3vw, 18px); opacity: .9; }
+.profile-card.add-card {
+  background: linear-gradient(#3a6a52, #2d5a42);
+  border-color: #1d7a3a;
+  box-shadow: 0 6px 0 #103a22;
+  justify-content: center;
+}
+
+/* tiny avatar chip on the level select to switch players */
+.avatar-chip {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  background: linear-gradient(#ffe071, var(--gold));
+  border: 4px solid #b8860b;
+  border-radius: 999px;
+  color: #5a3a00;
+  font-weight: 900;
+  font-size: clamp(14px, 3vw, 18px);
+  padding: 6px 14px 6px 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #b8860b;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.avatar-chip:active { transform: translateY(2px); box-shadow: 0 2px 0 #b8860b; }
+.avatar-chip img.emoji { width: 1.3em; height: 1.3em; vertical-align: -0.25em; }
+.card.wide { position: relative; }
+
 /* floating action bar for a selected (placed) tower */
 .action-bar {
   position: absolute;

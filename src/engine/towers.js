@@ -6,7 +6,7 @@ import { sfx } from '../audio.js'
 import { twemojify } from '../emoji.js'
 import { actionBar } from './dom.js'
 import { floatText, addBeam, ringEffect } from './effects.js'
-import { damageEnemy, applySlow, applyBurn, applyPoison, retreatAlongPath } from './enemies.js'
+import { damageEnemy, applySlow, applyBurn, applyPoison, retreatAlongPath, isTargetable } from './enemies.js'
 import { refreshPalette } from './ui.js'
 
 
@@ -47,7 +47,7 @@ function findTarget(t) {
   let best = null
   let bestDist = -1
   for (const e of S.G.enemies) {
-    if (e.dead) continue
+    if (!isTargetable(e, t.def.kind)) continue
     const dx = e.x - t.cx
     const dy = e.y - t.cy
     if (dx * dx + dy * dy <= r2 && e.dist > bestDist) {
@@ -63,7 +63,7 @@ function findTargets(t, n) {
   const r2 = rangePx * rangePx
   const inRange = []
   for (const e of S.G.enemies) {
-    if (e.dead) continue
+    if (!isTargetable(e, t.def.kind)) continue
     const dx = e.x - t.cx
     const dy = e.y - t.cy
     if (dx * dx + dy * dy <= r2) inRange.push(e)
@@ -80,7 +80,7 @@ function findStrongest(t) {
   let best = null
   let bestHp = -1
   for (const e of S.G.enemies) {
-    if (e.dead) continue
+    if (!isTargetable(e, t.def.kind)) continue
     const dx = e.x - t.cx
     const dy = e.y - t.cy
     if (dx * dx + dy * dy <= r2 && e.hp > bestHp) {
@@ -91,11 +91,11 @@ function findStrongest(t) {
   return best
 }
 
-function enemiesInRange(cx, cy, rangePx) {
+function enemiesInRange(cx, cy, rangePx, kind) {
   const r2 = rangePx * rangePx
   const out = []
   for (const e of S.G.enemies) {
-    if (e.dead) continue
+    if (!isTargetable(e, kind)) continue
     const dx = e.x - cx
     const dy = e.y - cy
     if (dx * dx + dy * dy <= r2) out.push(e)
@@ -142,7 +142,7 @@ function updateTowers(dt) {
 
     if (kind === 'frost' || kind === 'pulse') {
       const rangePx = towerStat(t, 'range') * TILE
-      const hits = enemiesInRange(t.cx, t.cy, rangePx)
+      const hits = enemiesInRange(t.cx, t.cy, rangePx, kind)
       if (hits.length === 0) continue
       t.cd = towerStat(t, 'cooldown') * rate
       const dmg = towerStat(t, 'damage') * (t.dmgBuff || 1)
@@ -177,6 +177,7 @@ function updateTowers(dt) {
         dmg,
         radius: towerStat(t, 'splashRadius') * TILE,
         color: t.def.color,
+        kind: 'splash',
       })
       sfx.shoot()
     } else if (kind === 'burn') {
@@ -240,7 +241,7 @@ function chainZap(t, dmg, first) {
     let best = null
     let bd = range * range
     for (const e of S.G.enemies) {
-      if (e.dead || hit.has(e)) continue
+      if (hit.has(e) || !isTargetable(e, 'chain')) continue
       const dx = e.x - cur.x
       const dy = e.y - cur.y
       const dd = dx * dx + dy * dy
@@ -276,7 +277,7 @@ function explode(p) {
   S.G.shake = Math.min(10, S.G.shake + 4)
   const r2 = p.radius * p.radius
   for (const e of S.G.enemies) {
-    if (e.dead) continue
+    if (!isTargetable(e, p.kind)) continue
     const dx = e.x - p.x
     const dy = e.y - p.y
     if (dx * dx + dy * dy <= r2) damageEnemy(e, p.dmg)

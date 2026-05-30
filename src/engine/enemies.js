@@ -61,11 +61,28 @@ function makeEnemy(type, opts = {}) {
     phaseTimer: def.boss?.phaseShield ? def.boss.phaseShield.interval : 0,
     invuln: 0,
     enraged: false,
+    // §3 new powers — per-instance timers/flags (each only matters if its def has it)
+    speedburstT: 0,                 // ticks up; cycles idle↔burst every `period`
+    healT: 0,                       // accumulates toward a 1s heal tick
+    phaseT: def.phase ? def.phase.period : 0, // time until next phase toggle
+    phased: false,                  // currently translucent + ignoring one kind
+    burrowT: def.burrow ? 2.0 : 0,  // time until next burrow toggle
+    burrowed: false,                // currently underground + untargetable
+    shielderT: def.shielder ? 0.4 : 0, // grants a bubble to the friend behind soon after spawn
   }
 }
 
 function spawnEnemy(type) {
   S.G.enemies.push(makeEnemy(type))
+}
+
+// §3 — can a tower of `towerKind` see/hit this monster right now?
+// Burrowed monsters are hidden from everyone; phased ones dodge ONE tower kind.
+function isTargetable(e, towerKind) {
+  if (e.dead || e.leaked) return false
+  if (e.burrowed) return false
+  if (e.phased && e.def.phase && e.def.phase.kind === towerKind) return false
+  return true
 }
 
 function updateSpawning(dt) {
@@ -132,6 +149,8 @@ function updateEnemies(dt) {
 
     // boss tricks (summon / hex / enrage / blink / phase-shield)
     if (e.boss) updateBoss(e, dt)
+    // §3 friendly powers (speedburst / heal-aura / phase / burrow / shielder)
+    updatePowers(e, dt)
     if (e.leaked) continue // a blink may have pushed it off the end
 
     // Nap (💤): freeze MOVEMENT only — towers keep firing, DoT keeps ticking,
@@ -141,7 +160,7 @@ function updateEnemies(dt) {
     let eff = 1
     if (e.slowTimer > 0) { e.slowTimer -= dt; eff = e.slowFactor }
     const bossMult = e.enraged ? e.boss.enrage.mult : 1
-    const speed = e.def.speed * eff * bossMult * TILE
+    const speed = e.def.speed * eff * bossMult * powerSpeedMult(e) * TILE
     let remain = speed * dt
     while (remain > 0 && e.seg < wp.length) {
       const tx = wp[e.seg].x
@@ -194,6 +213,9 @@ function updateEnemies(dt) {
 
 function damageEnemy(e, dmg, opts) {
   if (e.dead) return
+  // §3 burrowed monsters are safely underground — hits fizzle (covers stray
+  // AoE that didn't pre-filter). DoT already on them keeps ticking elsewhere.
+  if (e.burrowed) return
   // boss phase shield — totally invincible for a moment
   if (e.invuln > 0) {
     if (Math.random() < 0.25) ringEffect(e.x, e.y, e.def.radius + 4, '#8cff9e')
@@ -295,6 +317,85 @@ function updateBoss(e, dt) {
       }
     }
   }
+}
+
+// §3 — friendly enemy powers. Each only does anything if the def opts in, so
+// plain monsters behave exactly as before. Bosses can stack these too (fair).
+function updatePowers(e, dt) {
+  const def = e.def
+  // speedburst handled in powerSpeedMult; just keep the clock ticking here so
+  // the cycle advances even while frozen-in-place isn't an issue (it's read live)
+  if (def.speedburst) e.speedburstT += dt
+
+  // heal-aura: a "mama" that mends nearby friends once a second (never herself,
+  // never past their maxHp). A soft glow ring is drawn in render.js.
+  if (def.healAura) {
+    e.healT += dt
+    if (e.healT >= 1) {
+      e.healT -= 1
+      const rPx = def.healAura.radius * TILE
+      const r2 = rPx * rPx
+      for (const o of S.G.enemies) {
+        if (o === e || o.dead || o.leaked) continue
+        if (o.hp >= o.maxHp) continue
+        const dx = o.x - e.x, dy = o.y - e.y
+        if (dx * dx + dy * dy <= r2) {
+          o.hp = Math.min(o.maxHp, o.hp + def.healAura.hps)
+          if (Math.random() < 0.5) floatText(o.x, o.y - o.def.radius - 8, '💚', '#7be38c', 14)
+        }
+      }
+    }
+  }
+
+  // phase: flips translucent on a timer and dodges ONE tower kind while phased.
+  if (def.phase) {
+    e.phaseT -= dt
+    if (e.phaseT <= 0) {
+      e.phased = !e.phased
+      e.phaseT = def.phase.period
+      ringEffect(e.x, e.y, def.radius + 6, '#cfe9ff')
+    }
+  }
+
+  // burrow: periodically dips underground → untargetable, with a dust puff cue.
+  if (def.burrow) {
+    e.burrowT -= dt
+    if (e.burrowT <= 0) {
+      e.burrowed = !e.burrowed
+      // stay under briefly, surface for longer so it's always catchable soon
+      e.burrowT = e.burrowed ? 1.2 : 2.4
+      popEffect(e.x, e.y, '#caa56b')
+      floatText(e.x, e.y - def.radius - 8, '💨', '#e8d3a0', 16)
+    }
+  }
+
+  // shielder: hands a one-hit bubble to the nearest friend BEHIND it (lower
+  // dist), reusing the existing shield-bubble mechanic. Recharges on a timer.
+  if (def.shielder) {
+    e.shielderT -= dt
+    if (e.shielderT <= 0) {
+      e.shielderT = 3.0
+      let behind = null, bestDist = -1
+      for (const o of S.G.enemies) {
+        if (o === e || o.dead || o.leaked) continue
+        if (o.dist < e.dist && o.dist > bestDist) { behind = o; bestDist = o.dist }
+      }
+      if (behind) {
+        behind.shield = Math.max(behind.shield, 1)
+        ringEffect(behind.x, behind.y, behind.def.radius + 6, '#8cff9e')
+        floatText(e.x, e.y - def.radius - 8, '🫧', '#8cff9e', 16)
+      }
+    }
+  }
+}
+
+// speedburst folds into the movement speed: a gentle slow↔fast pulse.
+function powerSpeedMult(e) {
+  const sb = e.def.speedburst
+  if (!sb) return 1
+  // one full idle+burst loop is two `period`s; first half idle, second half burst
+  const cycle = (e.speedburstT % (sb.period * 2))
+  return cycle < sb.period ? sb.idle : sb.burst
 }
 
 function advanceAlongPath(e, dist) {
@@ -412,5 +513,5 @@ function removeDead() {
 
 export {
   startWave, updateSpawning, updateEnemies, checkWaveCleared, removeDead, damageEnemy, applySlow, applyBurn, applyPoison, retreatAlongPath,
-  sweepAllBack, freezeAll, clearNonBoss, pushNearLine,
+  sweepAllBack, freezeAll, clearNonBoss, pushNearLine, isTargetable,
 }

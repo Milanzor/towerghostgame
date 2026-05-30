@@ -130,7 +130,7 @@ const AREA_DEFS = [
       { name: 'Crystal Lake', path: 'I3', startCoins: 230, lives: 13, hpScale: 1.9, rewardScale: 1.24,
         waves: [
           [{ type: 'blob', count: 14, spacing: 0.45 }, { type: 'eyeball', count: 10, spacing: 0.4 }],
-          [{ type: 'zombie', count: 10, spacing: 0.7 }],
+          [{ type: 'mama', count: 2, spacing: 1.4 }, { type: 'zombie', count: 8, spacing: 0.7 }],
           [{ type: 'alien', count: 12, spacing: 0.5 }, { type: 'spider', count: 8, spacing: 0.5 }],
           [{ type: 'octopus', count: 5, spacing: 1.2 }, { type: 'bat', count: 14, spacing: 0.35 }],
         ] },
@@ -164,7 +164,7 @@ const AREA_DEFS = [
       { name: 'Torch Corridor', path: 'J2', startCoins: 255, lives: 12, hpScale: 2.4, rewardScale: 1.33,
         waves: [
           [{ type: 'pumpkin', count: 12, spacing: 0.5 }],
-          [{ type: 'robot', count: 6, spacing: 1.0 }, { type: 'spider', count: 10, spacing: 0.45 }],
+          [{ type: 'sheller', count: 3, spacing: 1.0 }, { type: 'spider', count: 10, spacing: 0.45 }],
           [{ type: 'caterpillar', count: 8, spacing: 0.8 }, { type: 'octopus', count: 6, spacing: 0.8 }],
           [{ type: 'microbe', count: 14, spacing: 0.4 }, { type: 'pumpkin', count: 8, spacing: 0.6 }],
         ] },
@@ -206,7 +206,7 @@ const AREA_DEFS = [
         waves: [
           [{ type: 'dragon', count: 8, spacing: 0.8 }],
           [{ type: 'robot', count: 10, spacing: 0.6 }, { type: 'octopus', count: 8, spacing: 0.6 }],
-          [{ type: 'snail', count: 5, spacing: 1.2 }, { type: 'microbe', count: 14, spacing: 0.4 }],
+          [{ type: 'mama', count: 3, spacing: 1.2 }, { type: 'snail', count: 5, spacing: 1.2 }, { type: 'microbe', count: 12, spacing: 0.4 }],
           [{ type: 'dragon', count: 8, spacing: 0.7 }, { type: 'pumpkin', count: 12, spacing: 0.4 }],
         ] },
       { name: 'Cinder Caves', path: 'K3', startCoins: 320, lives: 11, hpScale: 3.4, rewardScale: 1.48,

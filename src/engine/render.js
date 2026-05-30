@@ -401,12 +401,19 @@ function drawGhost(e) {
   const cx = e.x
   const cy = e.y + bob
 
+  // §3 heal-aura glow ring (drawn under everything else)
+  drawHealAura(e, cx, cy, r)
+  // §3 burrowed → mostly hidden underground; just a dust mound + status icons
+  if (e.burrowed) { drawBurrowMound(e); drawStatus(e, cx, cy, r); return }
+  // §3 phased → translucent and dodging one tower kind
+  const bodyA = e.phased ? 0.35 : 1
+
   // shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.25)'
+  ctx.fillStyle = `rgba(0,0,0,${0.25 * bodyA})`
   ctx.beginPath(); ctx.ellipse(e.x, e.y + r * 0.9, r * 0.8, r * 0.3, 0, 0, Math.PI * 2); ctx.fill()
 
   ctx.save()
-  ctx.globalAlpha = 0.94
+  ctx.globalAlpha = 0.94 * bodyA
   // body
   ctx.beginPath()
   ctx.arc(cx, cy, r, Math.PI, Math.PI * 2) // top dome
@@ -427,6 +434,7 @@ function drawGhost(e) {
   ctx.fill()
   ctx.restore()
 
+  ctx.globalAlpha = bodyA
   // crown for king
   if (def.crown) {
     drawEmoji(ctx, '👑', cx, cy - r * 0.95, r)
@@ -451,6 +459,7 @@ function drawGhost(e) {
   ctx.lineWidth = Math.max(2, r * 0.08)
   ctx.lineCap = 'round'
   ctx.beginPath(); ctx.arc(cx, cy + r * 0.18, r * 0.28, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke()
+  ctx.globalAlpha = 1
 
   drawStatus(e, cx, cy, r)
   drawHpBar(e, cx, cy, r)
@@ -463,6 +472,14 @@ function drawCritter(e) {
   const squish = 1 + Math.sin(S.G.time * 6 + e.bobPhase) * 0.06
   const cx = e.x
   const cy = e.y + bob
+
+  // §3 heal-aura glow ring (under the body)
+  drawHealAura(e, cx, cy, r)
+  // §3 burrowed → mostly hidden underground; just a dust mound + status icons
+  if (e.burrowed) { drawBurrowMound(e); drawStatus(e, cx, cy, r); return }
+  // §3 phased → translucent and dodging one tower kind
+  const bodyA = e.phased ? 0.35 : 1
+  ctx.globalAlpha = bodyA
 
   // shadow
   ctx.fillStyle = 'rgba(0,0,0,0.28)'
@@ -485,9 +502,40 @@ function drawCritter(e) {
 
   // emoji face
   drawEmoji(ctx, def.emoji, cx, cy + 1, Math.round(r * 1.6))
+  ctx.globalAlpha = 1
 
   drawStatus(e, cx, cy, r)
   drawHpBar(e, cx, cy, r)
+}
+
+// §3 — a soft pulsing glow ring in the monster's colour around a "mama" heal-aura.
+function drawHealAura(e, cx, cy, r) {
+  if (!e.def.healAura) return
+  const rPx = e.def.healAura.radius * TILE
+  const pulse = 0.5 + Math.sin(S.G.time * 3 + e.bobPhase) * 0.5
+  ctx.save()
+  ctx.globalAlpha = 0.08 + pulse * 0.06
+  ctx.fillStyle = e.def.color
+  ctx.beginPath(); ctx.arc(cx, cy, rPx, 0, Math.PI * 2); ctx.fill()
+  ctx.globalAlpha = 0.3 + pulse * 0.25
+  ctx.strokeStyle = lighten(e.def.color, 40)
+  ctx.lineWidth = 3
+  ctx.beginPath(); ctx.arc(cx, cy, rPx, 0, Math.PI * 2); ctx.stroke()
+  ctx.restore()
+}
+
+// §3 — when a burrower is underground, draw a little dusty mound where it dipped.
+function drawBurrowMound(e) {
+  const r = e.def.radius
+  const t = S.G.time
+  ctx.save()
+  ctx.fillStyle = 'rgba(0,0,0,0.18)'
+  ctx.beginPath(); ctx.ellipse(e.x, e.y + r * 0.9, r * 0.7, r * 0.22, 0, 0, Math.PI * 2); ctx.fill()
+  ctx.fillStyle = 'rgba(202,165,107,0.55)'
+  ctx.beginPath(); ctx.ellipse(e.x, e.y + r * 0.5, r * 0.55, r * 0.3, 0, Math.PI, Math.PI * 2); ctx.fill()
+  ctx.globalAlpha = 0.5 + Math.sin(t * 8 + e.bobPhase) * 0.2
+  drawEmoji(ctx, '💨', e.x + Math.sin(t * 4) * 3, e.y + r * 0.2, 16)
+  ctx.restore()
 }
 
 function drawStatus(e, cx, cy, r) {

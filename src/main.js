@@ -24,6 +24,7 @@ preloadEmoji([
   '🔊', '🔇', '⏩', '🏠', '✨', '👻', '🎉', '🗑️', '⬆️', '🐷',
   '👦', '👧', '➕', // kid profile avatars + add-player card
   '🧹', '💤', '🍬', // magic-button abilities (🌟 ✨ 🌊 already above)
+  '💚', '🐤', '🐚', // §3 heal-aura "mama" mend cue + Mama Chick + Bubble Shell (🫧 shielder + 💨 burrow already above)
   // §1 avatars/shop: hats, the shop bag + the mascot reaction faces
   '🛍️', '🎩', '🧢', '🎀', '🎃', '🧙', '🙂', '🙈', '👏', '😴', '👋',
   // §6 grown-up corner: gear gate, vibe faces, the wind-down clock

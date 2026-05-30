@@ -116,18 +116,31 @@ async function main() {
   await step('palette built', `document.querySelectorAll('.tower-btn').length`)
   // crank speed so a wave resolves fast
   await step('speed up', `(document.getElementById('speedBtn').click(), document.getElementById('speedBtn').click(), 'ok')`)
-  // select a helper and try to place it on several non-path cells
-  await step('select helper', `(document.querySelector('.tower-btn').click(), 'ok')`)
-  await step('place helper attempts', `(() => {
+
+  // helper to tap a grid cell (15×8) at its centre
+  const tapCell = (c, row) => `(() => {
     const cv = document.getElementById('canvas'); const r = cv.getBoundingClientRect()
-    const W = 15, H = 8; let placed = 0
-    for (let c = 0; c < W && placed < 6; c++) for (let row = 0; row < H && placed < 6; row++) {
-      const x = r.left + r.width * ((c + 0.5) / W), y = r.top + r.height * ((row + 0.5) / H)
-      cv.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, bubbles: true }))
-      placed++
-    }
-    return 'attempted'
-  })()`)
+    const x = r.left + r.width * ((${c} + 0.5) / 15), y = r.top + r.height * ((${row} + 0.5) / 8)
+    cv.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, bubbles: true }))
+    return 'ok'
+  })()`
+
+  // --- leveling up (the headline feature): place a Candle, then upgrade twice ---
+  await step('select Candle', `(document.querySelector('.tower-btn[data-key="candle"]').click(), 'ok')`)
+  await step('place Candle @ (0,0)', tapCell(0, 0))
+  await step('deselect helper', `(document.querySelector('.tower-btn.active')?.click(), 'ok')`)
+  await step('select placed Candle', tapCell(0, 0))
+  await step('action bar shows upgrade', `document.querySelector('.action-bar .up')?.textContent.trim()`)
+  await step('upgrade → Lvl 2', `(document.querySelector('.action-bar .up').click(), 'ok')`)
+  await sleep(150)
+  await step('upgrade → Lvl 3', `(document.querySelector('.action-bar .up').click(), 'ok')`)
+  await sleep(150)
+  await step('action bar after upgrades', `document.querySelector('.action-bar .up')?.textContent.trim()`)
+
+  // place a couple of the NEW kinds too (pull + frost-variant) to exercise them
+  await step('place Tornado (pull)', `(document.querySelector('.tower-btn[data-key="tornado"]').click(), 'ok')`)
+  await step('  → @ (1,0)', tapCell(1, 0))
+
   await sleep(300)
   // start the wave and let combat run
   await step('start wave', `(document.getElementById('goBtn').click(), 'ok')`)

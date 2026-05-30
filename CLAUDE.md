@@ -24,25 +24,44 @@ mansion door. Nothing scary — it's all bright, bouncy and silly. 💜
 
 ## Code map
 
-- `src/content.js` — all the kid-facing game data: `TOWERS` (helpers), `ENEMIES`
-  (cute monsters), and `LEVELS` (rooms/maps). This is the easy place to add or tweak
-  content — start here.
-- `src/main.js` — the game engine: rendering, input (incl. drag-and-drop placement),
-  waves, tower behaviours and enemy mechanics.
+- `src/content/` — all the kid-facing game data, split by domain. **The easy
+  place to add or tweak content — start here.** `src/content.js` is a barrel
+  that re-exports them, so importing from `./content.js` still works.
+  - `content/grid.js` — tile size + field dimensions.
+  - `content/towers.js` — `TOWERS` (helpers) + `TOWER_ORDER`.
+  - `content/enemies.js` — `ENEMIES` (cute monsters + bosses).
+  - `content/levels.js` — `PATHS`, the themed `AREAS`, and the flat `LEVELS`.
+- `src/engine/` — the game engine, split into focused modules:
+  - `engine/state.js` — shared mutable state (`S.G`, `S.screen`), save/progress,
+    `newGame()`.
+  - `engine/dom.js` — builds the HTML scaffold; exports the canvas/HUD handles.
+  - `engine/util.js` — tiny pure helpers (`clamp`, `lighten`, seeded RNG).
+  - `engine/effects.js` — particles + floating combat text.
+  - `engine/enemies.js` — waves, spawning, movement, damage, deaths, bosses.
+  - `engine/towers.js` — leveling/stat growth, targeting, attack kinds,
+    projectiles, placement, the upgrade/sell action bar.
+  - `engine/render.js` — all canvas drawing.
+  - `engine/input.js` — keyboard, drag-and-drop, canvas taps, touch guards.
+  - `engine/ui.js` — helper palette, HUD buttons, prep banner, HUD sync.
+  - `engine/screens.js` — start / room-picker / win-lose screens.
+- `src/main.js` — entry point: wires the modules, runs the frame loop, boots.
 - `src/audio.js` — tiny Web Audio sound engine (no audio files).
 - `src/update-check.js` — polls the deployed `index.html` and shows the ✨ update
   button when a newer build is live.
 - `src/style.css` — all styling.
+- `scripts/smoke.mjs` — `npm run smoke`: headless-chromium gameplay smoke test
+  (build first). Run it to verify engine changes don't break the running game.
 
 ## Game design notes
 
-- Tower `kind`s (in `content.js` / handled in `main.js` `updateTowers`):
+- Tower `kind`s (defined in `content/towers.js` / handled in `engine/towers.js`
+  `updateTowers`):
   `beam`, `suck`, `splash`, `chain`, `burn`, `poison`, `frost`, `pulse`,
   `multishot`, `bank`, `snipe` (hits the toughest), `bounty` (bonus coins on
   catch), `boost` (buffs nearby helpers, never fires), `pull` (whirls the lead
   monster backwards).
 - Every helper can be **leveled up** to `MAX_LEVEL` (5). There are no per-level
-  stat tables — `towerStat()` in `main.js` grows the base stats via
+  stat tables — `towerStat()` in `engine/towers.js` grows the base stats via
   `LEVEL_GROWTH`, so a new helper just needs its base stats.
 - Enemy powers (optional fields on an enemy def): `armor`, `shield`, `regen`,
   `split: { type, count }`. Enemies render as classic ghosts (`shape: 'ghost'`) or

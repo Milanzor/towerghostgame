@@ -1164,8 +1164,15 @@ function lose() {
 // ===========================================================================
 // HUD sync
 // ===========================================================================
+let lastCoins = null
 function syncHUD() {
   elCoins.textContent = G.coins
+  // When coins change (a monster popped, level income, wave bonus…) re-check
+  // which helpers the player can now afford so the strip un-greys instantly.
+  if (G.coins !== lastCoins) {
+    lastCoins = G.coins
+    refreshPalette()
+  }
   elLives.textContent = G.lives
   const shown = Math.min(G.waveIndex + 1, G.waveCount)
   elWave.textContent = `${shown}/${G.waveCount}`

@@ -8,7 +8,21 @@
 // loaded yet (e.g. offline), so nothing ever breaks.
 // ---------------------------------------------------------------------------
 
-const BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/'
+// We self-host the icons (see scripts/fetch-emoji.mjs). Vite hashes each PNG
+// and serves it same-origin, which is what fixes the blank icons on iPad:
+// iOS Safari is unreliable about drawing *cross-origin* images to a <canvas>.
+// Anything we somehow didn't vendor falls back to the CDN so nothing breaks.
+const CDN = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/'
+
+// code ("1f47b") -> bundled, hashed, same-origin URL.
+const LOCAL = {}
+const assets = import.meta.glob('./emoji-assets/*.png', {
+  eager: true, query: '?url', import: 'default',
+})
+for (const path in assets) {
+  const code = path.slice(path.lastIndexOf('/') + 1, -'.png'.length)
+  LOCAL[code] = assets[path]
+}
 
 // Twemoji filenames: hyphen-joined hex codepoints, with the VS16 (U+FE0F)
 // presentation selector stripped unless it's part of a ZWJ sequence.
@@ -20,7 +34,8 @@ export function emojiCode(emoji) {
   return cps.map(c => c.toString(16)).join('-')
 }
 export function emojiUrl(emoji) {
-  return BASE + emojiCode(emoji) + '.png'
+  const code = emojiCode(emoji)
+  return LOCAL[code] || (CDN + code + '.png')
 }
 
 // --- Canvas image cache -----------------------------------------------------

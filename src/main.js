@@ -11,6 +11,7 @@ import { render } from './engine/render.js'
 import { buildPalette, syncHUD } from './engine/ui.js'
 import { updateAbilities, updatePickups, buildAbilityTray, refreshAbilityTray } from './engine/abilities.js'
 import { updateMascot } from './cosmetics.js'
+import { tickPlayTimer } from './engine/grownup.js'
 import { showStart } from './engine/screens.js'
 import './engine/input.js' // registers pointer/keyboard/touch listeners
 
@@ -25,6 +26,8 @@ preloadEmoji([
   '🧹', '💤', '🍬', // magic-button abilities (🌟 ✨ 🌊 already above)
   // §1 avatars/shop: hats, the shop bag + the mascot reaction faces
   '🛍️', '🎩', '🧢', '🎀', '🎃', '🧙', '🙂', '🙈', '👏', '😴', '👋',
+  // §6 grown-up corner: gear gate, vibe faces, the wind-down clock
+  '⚙️', '😌', '😄', '⏰', '🗑️',
 
   // themed room props + goal doors (see LEVELS decor/door in content.js)
   '🚪', '🏰', '🌀', '🕸️', '🖼️', '🪦', '🕯️', '🦇', '🧊', '💎', '🦴', '⛄',
@@ -42,6 +45,10 @@ function frame(now) {
   let dt = (now - last) / 1000
   last = now
   if (dt > 0.05) dt = 0.05
+
+  // §6 soft play-timer: counts real PLAY seconds (self-guards on screen/pause)
+  // and drives the gentle wind-down. Runs every frame so the ramp keeps moving.
+  tickPlayTimer(dt)
 
   if (S.screen === 'playing' && S.G) {
     const G = S.G

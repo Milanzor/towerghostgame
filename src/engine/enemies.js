@@ -1,6 +1,6 @@
 // Waves, spawning and everything the monsters do: movement, damage, deaths,
 // splits, status effects (burn/poison/slow) and the per-area boss tricks.
-import { S } from './state.js'
+import { S, isCozy } from './state.js'
 import { ENEMIES, TILE, FIELD_W, FIELD_H } from '../content.js'
 import { sfx } from '../audio.js'
 import { floatText, popEffect, ringEffect, emberAt } from './effects.js'
@@ -171,7 +171,8 @@ function updateEnemies(dt) {
     return true
   })
   if (leaked > 0) {
-    if (S.G.endless) {
+    // §6 Cozy vibe reuses the §5 no-fail float-away path — never costs a life.
+    if (S.G.endless || isCozy()) {
       // No-fail Backyard: no lives lost, no game-over. The monster just floats
       // away happily with a little giggle cue — pure delight, zero pressure.
       for (const p of leakPts) {

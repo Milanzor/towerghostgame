@@ -82,6 +82,8 @@ export const ovProfiles = makeOverlay('ovProfiles')
 export const ovSelect = makeOverlay('ovSelect')
 export const ovResult = makeOverlay('ovResult')
 export const ovShop = makeOverlay('ovShop')
+export const ovGrownup = makeOverlay('ovGrownup') // §6 grown-ups-only panel
+export const ovRest = makeOverlay('ovRest')       // §6 gentle wind-down screen
 
 export function hideAllOverlays() {
   ovStart.classList.add('hidden')
@@ -89,4 +91,6 @@ export function hideAllOverlays() {
   ovSelect.classList.add('hidden')
   ovResult.classList.add('hidden')
   ovShop.classList.add('hidden')
+  ovGrownup.classList.add('hidden')
+  ovRest.classList.add('hidden')
 }

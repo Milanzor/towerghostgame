@@ -128,6 +128,7 @@ const MUSIC_TRACKS = [
 let musicStep = 0
 let musicInterval = null
 let musicTrack = null
+let musicTempo = 1 // §6 wind-down ramp: >1 stretches each beat (slower music)
 
 function musicNote(freq, dur, type, vol) {
   if (muted) return
@@ -151,24 +152,39 @@ export const music = {
     this.stop()
     musicTrack = MUSIC_TRACKS[levelIndex % MUSIC_TRACKS.length]
     musicStep = 0
+    musicTempo = 1 // a fresh room always starts at full pace
     ensure()
+    this._arm()
+  },
+  // (Re)build the beat interval at the current tempo. Called on play() and again
+  // whenever the wind-down ramp changes the tempo, so the slowdown is audible.
+  _arm() {
+    if (musicInterval) { clearInterval(musicInterval); musicInterval = null }
+    if (!musicTrack) return
     musicInterval = setInterval(() => {
       const tr = musicTrack
       if (!tr) return
       const m = tr.mel[musicStep % tr.mel.length]
       if (m !== null && m !== undefined) {
-        musicNote(tr.root * Math.pow(2, m / 12), tr.dur, tr.wave, 0.05)
+        musicNote(tr.root * Math.pow(2, m / 12), tr.dur * musicTempo, tr.wave, 0.05)
       }
       const b = tr.bass[musicStep % tr.bass.length]
       if (b !== null && b !== undefined) {
-        musicNote(tr.root / 2 * Math.pow(2, b / 12), tr.step / 1000 * 1.5, 'triangle', 0.045)
+        musicNote(tr.root / 2 * Math.pow(2, b / 12), tr.step / 1000 * 1.5 * musicTempo, 'triangle', 0.045)
       }
       musicStep++
-    }, musicTrack.step)
+    }, musicTrack.step * musicTempo)
+  },
+  // §6 wind-down: stretch the beat by `factor` (1 = normal, 2 = half speed) so
+  // the music gently slows as the play timer runs out. Re-arms the interval.
+  slow(factor) {
+    musicTempo = Math.max(1, factor)
+    if (musicInterval) this._arm()
   },
   stop() {
     if (musicInterval) { clearInterval(musicInterval); musicInterval = null }
     musicTrack = null
+    musicTempo = 1
   },
   isPlaying() { return musicInterval !== null },
 }

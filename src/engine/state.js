@@ -111,6 +111,29 @@ export function listProfiles() {
   return Object.entries(save.profiles).map(([id, p]) => ({ id, ...p }))
 }
 
+// ---------------------------------------------------------------------------
+// §6 Grown-up corner — vibe (difficulty) accessors + a full progress wipe.
+// The active profile's settings.vibe is one of 'cozy' | 'justright' | 'bigkid'.
+// ---------------------------------------------------------------------------
+export function currentVibe() {
+  const s = currentProfile().settings
+  return (s && s.vibe) || 'justright'
+}
+// Cozy = no-fail: reuses the §5 endless float-away path so a leak never costs a
+// life. Read at runtime in the leak handler.
+export function isCozy() { return currentVibe() === 'cozy' }
+export function isBigKid() { return currentVibe() === 'bigkid' }
+
+// Reset ALL progress for hand-me-downs / a fresh start: wipe the save and
+// re-seed the two default profiles, in place so existing imports stay valid.
+export function resetAllProgress() {
+  const fresh = defaultSave()
+  save.version = fresh.version
+  save.activeProfile = fresh.activeProfile
+  save.profiles = fresh.profiles
+  writeSave()
+}
+
 // ===========================================================================
 // New game / per-room state factory
 // ===========================================================================
@@ -119,13 +142,16 @@ export function listProfiles() {
 // fields. `opts.endless` flags the no-fail infinite sandbox.
 export function newGameFromLevel(level, levelIndex, opts = {}) {
   const endless = !!opts.endless
+  // §6 Big Kid vibe: a gentle, clearly-optional bump — one fewer starting heart
+  // (min 1). Cozy never loses lives anyway; Just Right keeps the level as-authored.
+  const lives = (!endless && isBigKid()) ? Math.max(1, level.lives - 1) : level.lives
   return {
     level,
     levelIndex,
     endless,
     coins: level.startCoins,
-    lives: endless ? Infinity : level.lives,
-    livesMax: endless ? Infinity : level.lives,
+    lives: endless ? Infinity : lives,
+    livesMax: endless ? Infinity : lives,
     waveIndex: 0,
     // Endless rooms have no fixed wave list — waveCount is unbounded.
     waveCount: endless ? Infinity : level.waves.length,

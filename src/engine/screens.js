@@ -1,5 +1,5 @@
 // Start screen, room picker, and the win/lose result screens.
-import { S, writeSave, newGame, newSandbox, currentProfile, setActiveProfile, addProfile, listProfiles } from './state.js'
+import { S, writeSave, newGame, newSandbox, currentProfile, setActiveProfile, addProfile, listProfiles, recordLoss, stuckBonusFor, resetStuck } from './state.js'
 import { LEVELS, AREAS } from '../content.js'
 import { BACKYARD } from '../backyard.js'
 import { sfx, music } from '../audio.js'
@@ -467,6 +467,9 @@ function applyWinRewards(leftoverCoins) {
   const earned = 3 + stars + Math.floor(coins / 25)
   prof.points += earned
   writeSave()
+  // Beating a level (incl. the final one — finishing the map) ends any stuck
+  // streak: the kid clearly isn't stuck on it anymore.
+  resetStuck()
   G.rewarded = { stars, earned, coins }
   return G.rewarded
 }
@@ -518,11 +521,19 @@ function lose() {
   sfx.lose()
   hidePrepBanner()
   const i = S.G.levelIndex
+  // §stuck — count this loss, then peek at what the NEXT retry of this room will
+  // start with. Two losses in a row here onward earns a growing coin boost.
+  recordLoss(i)
+  const boost = stuckBonusFor(i)
+  const boostNote = boost > 0
+    ? `<p class="treats">💰 Here's <b>${boost}</b> extra coins to help you catch them this time!</p>`
+    : ''
   ovResult.innerHTML = `
     <div class="card">
       <h1>😅 Oh no!</h1>
       <h2>The monsters got through!</h2>
       <p>That's okay — every ghost catcher needs practice. Try again, you've got this! 💜</p>
+      ${boostNote}
       <div>
         <button class="big-btn green" id="retryBtn">🔁 Try Again</button>
         <button class="big-btn" id="mapBtn2">🗺️ Rooms</button>

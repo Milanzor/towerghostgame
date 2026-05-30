@@ -135,6 +135,32 @@ export function resetAllProgress() {
 }
 
 // ===========================================================================
+// "Stuck helper" — a gentle catch-up so a frustrated kid is never walled out.
+// Lose the SAME level twice in a row and every retry after that starts with a
+// growing pile of extra coins. The streak is tied to one level: picking a
+// DIFFERENT level wipes it, and so does finishing a level (a win). Lives outside
+// any single game so it survives the retry that rebuilds S.G.
+// ===========================================================================
+const STUCK_BONUS = 30 // extra starting coins per loss beyond the first
+let stuckLevel = -1     // which level the current losing streak belongs to
+let lossStreak = 0      // consecutive losses on that level
+
+// Record a loss on a level. A loss on a different level than the tracked one
+// starts a fresh streak for that level.
+export function recordLoss(levelIndex) {
+  if (levelIndex !== stuckLevel) { stuckLevel = levelIndex; lossStreak = 0 }
+  lossStreak++
+}
+// Extra starting coins a retry of this level should get. Zero until the kid has
+// lost it twice in a row, then grows by STUCK_BONUS for each further loss.
+export function stuckBonusFor(levelIndex) {
+  if (levelIndex !== stuckLevel || lossStreak < 2) return 0
+  return (lossStreak - 1) * STUCK_BONUS
+}
+// Clear the streak — called when a different level is picked or a level is won.
+export function resetStuck() { stuckLevel = -1; lossStreak = 0 }
+
+// ===========================================================================
 // New game / per-room state factory
 // ===========================================================================
 // Build the per-room state from a level OBJECT. Both the numbered levels and the
@@ -149,7 +175,8 @@ export function newGameFromLevel(level, levelIndex, opts = {}) {
     level,
     levelIndex,
     endless,
-    coins: level.startCoins,
+    coins: level.startCoins + (opts.startBonus || 0),
+    startBonus: opts.startBonus || 0, // §stuck — extra coins granted this run (for the HUD note)
     lives: endless ? Infinity : lives,
     livesMax: endless ? Infinity : lives,
     waveIndex: 0,
@@ -182,7 +209,11 @@ export function newGameFromLevel(level, levelIndex, opts = {}) {
 
 // Numbered story rooms — read the level from the flat LEVELS array.
 export function newGame(levelIndex) {
-  return newGameFromLevel(LEVELS[levelIndex], levelIndex)
+  // Picking a different level than the one we're stuck on wipes the streak;
+  // retrying the same level keeps it so the catch-up bonus can build.
+  if (levelIndex !== stuckLevel) resetStuck()
+  const startBonus = stuckBonusFor(levelIndex)
+  return newGameFromLevel(LEVELS[levelIndex], levelIndex, { startBonus })
 }
 
 // The §5 endless Backyard sandbox — no lives, no lose, procedural waves. Built

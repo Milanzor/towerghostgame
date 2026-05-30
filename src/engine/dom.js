@@ -23,6 +23,7 @@ app.innerHTML = `
     <div class="stage" id="stage">
       <canvas id="canvas"></canvas>
       <div class="prep-banner hidden" id="prepBanner"></div>
+      <button class="tidy-btn hidden" id="tidyBtn"></button>
       <div class="action-bar hidden" id="actionBar"></div>
     </div>
     <div class="palette" id="palette">
@@ -41,6 +42,7 @@ export const paletteEl = document.getElementById('palette')
 export const towerStrip = document.getElementById('towerStrip')
 export const actionBar = document.getElementById('actionBar')
 export const prepBanner = document.getElementById('prepBanner')
+export const tidyBtn = document.getElementById('tidyBtn')
 export const elCoins = document.getElementById('coins')
 export const elLives = document.getElementById('lives')
 export const elWave = document.getElementById('wave')

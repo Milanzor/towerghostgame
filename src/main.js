@@ -12,7 +12,7 @@ import { buildPalette, syncHUD } from './engine/ui.js'
 import { updateAbilities, updatePickups, buildAbilityTray, refreshAbilityTray } from './engine/abilities.js'
 import { updateMascot } from './cosmetics.js'
 import { tickPlayTimer } from './engine/grownup.js'
-import { showStart } from './engine/screens.js'
+import { showStart, tickTidyUp } from './engine/screens.js'
 import './engine/input.js' // registers pointer/keyboard/touch listeners
 
 // Preload every emoji we draw/show so they render identically on all devices
@@ -69,6 +69,7 @@ function frame(now) {
       checkWaveCleared()
       updateAbilities(sdt)  // tick cooldowns + freeze timer
       updatePickups(sdt)    // bob + fade floating ✨ sparkles
+      tickTidyUp(sdt)       // §9 — drive the closure ritual when phase==='tidyup'
     }
     if (!G.paused) updateParticles(dt * G.speed)
     updateMascot(dt) // mascot reactions tick even while paused/done (real time)

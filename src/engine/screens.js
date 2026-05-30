@@ -4,12 +4,13 @@ import { LEVELS, AREAS } from '../content.js'
 import { BACKYARD } from '../backyard.js'
 import { sfx, music } from '../audio.js'
 import { twemojify, setEmojiText } from '../emoji.js'
-import { ovStart, ovProfiles, ovSelect, ovResult, ovShop, hideAllOverlays, elLevelName } from './dom.js'
+import { ovStart, ovProfiles, ovSelect, ovResult, ovShop, hideAllOverlays, elLevelName, tidyBtn } from './dom.js'
 import { hideActionBar } from './towers.js'
 import { refreshPalette, showPrepBanner, hidePrepBanner } from './ui.js'
 import { resetAbilities } from './abilities.js'
 import { AVATARS, HATS, HAT_ORDER, resetMascot, avatarReact } from '../cosmetics.js'
 import { gearButtonHTML, wireGearButton } from './grownup.js'
+import { popEffect, floatText } from './effects.js'
 
 
 // ===========================================================================
@@ -118,8 +119,16 @@ function tokenHTML(prof) {
 // a 🚩 flag; the NEXT playable stop bounces to pull the eye. Returning after a win
 // that unlocked a new stop slides the token forward, then puffs a little cheer.
 function showLevelSelect() {
+  // If the kid leaves mid-tidy-up (Home), still bank the win — progression must
+  // never hinge on finishing the animation. Rewards are guarded to fire once.
+  if (S.G && S.G.phase === 'tidyup') {
+    applyWinRewards(S.G.tidy ? S.G.tidy.leftover : S.G.coins)
+    S.G.phase = 'done'
+    S.G.tidy = null
+  }
   S.screen = 'select'
   hideActionBar()
+  hideTidyButton()
   music.stop()
   const prof = currentProfile()
   // The stop the token rests on = latest unlocked (clamped into range).
@@ -256,6 +265,7 @@ function startLevel(i) {
   S.screen = 'playing'
   hideAllOverlays()
   hideActionBar()
+  hideTidyButton()
   setEmojiText(elLevelName, `${LEVELS[i].areaEmoji} ${LEVELS[i].name}`)
   setEmojiText(document.getElementById('speedBtn'), '⏩')
   showPrepBanner()
@@ -272,6 +282,7 @@ function startSandbox() {
   S.screen = 'playing'
   hideAllOverlays()
   hideActionBar()
+  hideTidyButton()
   setEmojiText(elLevelName, `${BACKYARD.areaEmoji} ${BACKYARD.name}`)
   setEmojiText(document.getElementById('speedBtn'), '⏩')
   showPrepBanner()
@@ -296,18 +307,149 @@ function computeStars() {
   return 1
 }
 
-function win() {
+// ===========================================================================
+// §9 Closure ritual — "tidy up". A calm, ~3s, SKIPPABLE put-away the kid taps
+// once. Slots BETWEEN win-detection (checkWaveCleared) and the result/stars.
+// The board stays on screen; helpers hop off, leftover coins swoosh into a 🐷,
+// the house tucks in, the avatar claps — then the result reveals.
+//
+// Reward integrity: we SNAPSHOT leftover coins here (before the swoosh animation
+// drains them) and pass it to win(), so the §1 points formula is unaffected by
+// the animation. win()'s rewards (stars/unlock/points/save) fire EXACTLY ONCE,
+// on the single transition into the result — whether the ritual plays out or the
+// kid skips/taps away.
+// ===========================================================================
+const TIDY_DUR = 3.0 // target ritual length (seconds); we hard-cap the loop too
+
+function beginTidyUp() {
+  const G = S.G
+  // Snapshot leftover coins NOW — the swoosh visually drains G.coins toward 0,
+  // but the reward math must use this captured total.
+  const leftover = G.coins
+  G.phase = 'tidyup'
+  G.tidy = { t: 0, coins0: leftover, coins: leftover, leftover, ran: false }
+  // give each placed helper a staggered exit time + a gentle random hop arc
+  G.towers.forEach((t, idx) => {
+    t.exitAt = 0.15 + idx * 0.18
+    t.exitDir = (idx % 2 === 0 ? -1 : 1)
+    t.popped = false
+  })
+  lastSwooshAt = -1
+  music.stop() // gentle hush; the ritual has its own little cues
+  avatarReact('clap') // mascot claps/stretches as the tidy-up starts
+  showTidyButton()
+}
+
+function showTidyButton() {
+  setEmojiText(tidyBtn, '✨ Tidy up!')
+  tidyBtn.classList.remove('hidden', 'skip')
+  tidyBtn._mode = 'tidy'
+  tidyBtn.onclick = onTidyTap
+}
+
+function onTidyTap() {
+  sfx.click()
+  const G = S.G
+  if (!G || G.phase !== 'tidyup' || !G.tidy) return
+  if (!G.tidy.ran) {
+    // First tap → play the ritual. Swap the button to a friendly "skip".
+    G.tidy.ran = true
+    setEmojiText(tidyBtn, '⏩ Skip')
+    tidyBtn.classList.add('skip')
+    avatarReact('clap')
+  } else {
+    // Second tap → fast-forward straight to the result.
+    finishTidyUp()
+  }
+}
+
+let lastSwooshAt = -1
+// Ticked from the main loop while phase==='tidyup' (real-ish dt, scaled by speed
+// like the rest of the sim). Drives the staggered helper hops, the coin swoosh
+// and the house tuck-in. Auto-reveals the result when the timeline completes.
+function tickTidyUp(dt) {
+  const G = S.G
+  if (!G || G.phase !== 'tidyup' || !G.tidy) return
+  if (!G.tidy.ran) return // waiting for the kid's first tap — board just sits there
+  const td = G.tidy
+  td.t += dt
+  // 1) helpers wave + hop off, one by one, each with a soft pop.
+  for (const t of G.towers) {
+    if (!t.popped && td.t >= (t.exitAt || 0)) {
+      t.popped = true
+      popEffect(t.cx, t.cy - 4, t.def.color)
+      floatText(t.cx, t.cy - 18, 'bye! 👋', '#ffd34d', 16)
+      sfx.hop()
+    }
+  }
+  // 2) coins swoosh into the piggy — drain the (display-only) counter toward 0
+  //    over ~1.2s starting a beat in, with a rising-pitch tick each step.
+  const drainStart = 0.5, drainDur = 1.3
+  if (td.coins0 > 0 && td.t >= drainStart) {
+    const f = clampTidy((td.t - drainStart) / drainDur, 0, 1)
+    td.coins = Math.round(td.coins0 * (1 - f))
+    G.coins = td.coins // visually drain the HUD (reward already snapshotted)
+    const step = Math.floor((td.t - drainStart) * 9)
+    if (step !== lastSwooshAt && f < 1) { lastSwooshAt = step; sfx.swoosh(step % 6) }
+  }
+  // 3) house tucks in near the end — the door dim is read by drawDoor() off
+  //    G.tidy.t, and a one-shot cozy "tuck" cue fires once.
+  if (!td.tucked && td.t >= TIDY_DUR - 1.1) {
+    td.tucked = true
+    sfx.tuck()
+    avatarReact('clap')
+  }
+  // done → reveal the stars
+  if (td.t >= TIDY_DUR) finishTidyUp()
+}
+
+function clampTidy(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v }
+
+// Single transition into the result — fires the reward exactly once via win()
+// with the captured leftover coins. Reached by natural finish OR a skip tap.
+function finishTidyUp() {
+  const G = S.G
+  if (!G || G.phase !== 'tidyup') return
+  const leftover = G.tidy ? G.tidy.leftover : G.coins
+  G.phase = 'done'
+  G.tidy = null
+  hideTidyButton()
+  win(leftover)
+}
+
+function hideTidyButton() {
+  tidyBtn.classList.add('hidden')
+  tidyBtn.onclick = null
+}
+
+// Apply the win rewards (stars / unlock / §1 points / save) EXACTLY ONCE per
+// game, guarded by G.rewarded. Called from win() on the result reveal, and also
+// if the kid taps away mid-tidy-up (so progression is never lost). Returns the
+// { stars, earned, coins } it used so win() can render them.
+function applyWinRewards(leftoverCoins) {
+  const G = S.G
+  if (G.rewarded) return G.rewarded // already applied — reuse the snapshot
+  const coins = Number.isFinite(leftoverCoins) ? leftoverCoins : G.coins
   const stars = computeStars()
-  const i = S.G.levelIndex
+  const i = G.levelIndex
   const prof = currentProfile()
   if (stars > (prof.stars[i] || 0)) prof.stars[i] = stars
   if (i + 1 > prof.unlocked && i + 1 < LEVELS.length) prof.unlocked = i + 1
   if (i + 1 >= LEVELS.length) prof.unlocked = Math.max(prof.unlocked, LEVELS.length - 1)
   // Persistent Points wallet (§1, separate from stars): a clear bonus + the
   // stars earned + a little for leftover coins. Hats are bought with these.
-  const earned = 3 + stars + Math.floor(S.G.coins / 25)
+  const earned = 3 + stars + Math.floor(coins / 25)
   prof.points += earned
   writeSave()
+  G.rewarded = { stars, earned, coins }
+  return G.rewarded
+}
+
+function win(leftoverCoins) {
+  // leftoverCoins is the coin total captured at win-time (before the tidy-up
+  // swoosh drained the HUD). Fall back to the live total if called directly.
+  const { stars, earned } = applyWinRewards(leftoverCoins)
+  const i = S.G.levelIndex
   avatarReact('cheer') // mascot cheers + jumps on the win
   music.stop()
   sfx.win()
@@ -443,4 +585,5 @@ function showShop(back) {
 
 export {
   showStart, showLevelSelect, win, lose, showShop, startSandbox, leaveSandbox,
+  beginTidyUp, tickTidyUp,
 }

@@ -155,7 +155,7 @@ export function newGameFromLevel(level, levelIndex, opts = {}) {
     waveIndex: 0,
     // Endless rooms have no fixed wave list — waveCount is unbounded.
     waveCount: endless ? Infinity : level.waves.length,
-    phase: 'prep', // 'prep' | 'spawning' | 'cleanup' | 'done'
+    phase: 'prep', // 'prep' | 'spawning' | 'cleanup' | 'tidyup' | 'done'
     started: false, // has the player pressed Start at least once?
     spawnQueue: [],
     spawnTimer: 0,
@@ -181,6 +181,9 @@ export function newGameFromLevel(level, levelIndex, opts = {}) {
     zapUsed: false,       // Big Zap is once-per-level
     aiming: null,         // id of the ability awaiting a swipe (Wave), or null
     aimSwipe: null,       // live { from, to } points while drawing the Wave
+    // --- §9 Closure ritual ("tidy up") — only used on a real level win ---
+    tidy: null,           // null until the ritual starts; then { t, coins, coins0, ran }
+    rewarded: null,       // set once when win rewards are banked (guards double-award)
   }
 }
 

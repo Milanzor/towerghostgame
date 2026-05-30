@@ -65,6 +65,12 @@ export const sfx = {
   },
   // §8 world map: a soft, gentle "poke" blip when tapping an area diorama.
   poke: () => tone(540, 0.09, 'sine', 0.12, 880),
+  // §9 tidy-up ritual: a soft helper "hop off" pop, a rising coin→piggy swoosh
+  // (pitch climbs each call for a satisfying counter tick), and a cozy "tuck-in"
+  // yawn as the house dims to sleep.
+  hop: () => tone(440, 0.1, 'sine', 0.14, 760),
+  swoosh: (step = 0) => tone(660 + step * 70, 0.08, 'sine', 0.12, 1320 + step * 90),
+  tuck: () => { tone(330, 0.5, 'sine', 0.13, 160); setTimeout(() => tone(220, 0.6, 'sine', 0.1, 120), 120) },
 }
 
 // ===========================================================================

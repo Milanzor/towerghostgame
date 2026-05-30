@@ -4,7 +4,7 @@ import { S, isCozy } from './state.js'
 import { ENEMIES, TILE, FIELD_W, FIELD_H } from '../content.js'
 import { sfx } from '../audio.js'
 import { floatText, popEffect, ringEffect, emberAt } from './effects.js'
-import { win, lose } from './screens.js'
+import { beginTidyUp, lose } from './screens.js'
 import { showPrepBanner, hidePrepBanner } from './ui.js'
 import { maybeDropSparkle } from './abilities.js'
 import { avatarReact } from '../cosmetics.js'
@@ -98,8 +98,9 @@ function checkWaveCleared() {
     S.G.phase = 'prep'
     showPrepBanner()
   } else if (S.G.waveIndex >= S.G.waveCount) {
-    S.G.phase = 'done'
-    win()
+    // §9 — a real level win routes through the calm tidy-up ritual, which then
+    // reveals the result/stars. beginTidyUp() sets phase = 'tidyup' itself.
+    beginTidyUp()
   } else {
     S.G.phase = 'prep'
     showPrepBanner()

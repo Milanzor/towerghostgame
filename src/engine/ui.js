@@ -147,7 +147,9 @@ function syncHUD() {
     if (S.G.phase === 'prep') {
       goBtn.disabled = false
       label = S.G.started ? '▶ Next Wave!' : '▶ Start!'
-    } else if (S.G.phase === 'done') {
+    } else if (S.G.phase === 'done' || S.G.phase === 'tidyup') {
+      // §9 — during the tidy-up ritual the GO button rests; the on-stage
+      // "✨ Tidy up!" button drives the closure instead.
       goBtn.disabled = true
       label = '🎉'
     } else {

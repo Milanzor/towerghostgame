@@ -34,6 +34,7 @@ function render() {
   drawPickups()
   drawAimGuide()
   drawPlacementPreview()
+  if (S.G.phase === 'tidyup') drawTidyUp()
 
   // hurt flash
   if (S.G.flash > 0) {
@@ -167,12 +168,20 @@ function drawDoor(x, y) {
   ctx.save()
   ctx.translate(x, y)
   const t = S.G.time
-  // pulsing goal glow in the area accent colour
-  ctx.globalAlpha = 0.22 + Math.sin(t * 2) * 0.05
+  // §9 — during the tidy-up ritual the house "tucks in": the goal glow fades out
+  // toward the end and a sleepy 💤 floats up. Otherwise the usual pulsing glow.
+  const tidy = S.G.phase === 'tidyup' ? S.G.tidy : null
+  const dim = (tidy && tidy.ran) ? clamp(1 - (tidy.t - 1.0) / 1.5, 0, 1) : 1
+  ctx.globalAlpha = (0.22 + Math.sin(t * 2) * 0.05) * dim
   ctx.fillStyle = S.G.level.accent || '#ffd34d'
   ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.fill()
   ctx.globalAlpha = 1
   drawEmoji(ctx, S.G.level.door || '🚪', 0, 0, 40)
+  if (tidy && tidy.ran && tidy.t > 1.4) {
+    ctx.globalAlpha = clamp((tidy.t - 1.4) / 0.6, 0, 1)
+    drawEmoji(ctx, '💤', 22, -30 - Math.sin(t * 3) * 3, 20)
+    ctx.globalAlpha = 1
+  }
   ctx.restore()
 }
 
@@ -193,6 +202,59 @@ function drawMascot() {
   drawAvatar(ctx, { avatar: prof.avatar, hat: prof.hat }, mx, my, 46, S.G.time, { prep: S.G.phase === 'prep' })
 }
 
+// §9 — the closure ritual's piggy bank + the coin swoosh. The piggy bobs in the
+// lower-left corner; while the (display-only) coin counter drains, little 🪙s
+// arc from the field centre into the piggy. A friendly "all tidy!" cue floats up
+// once everything is put away.
+function drawTidyUp() {
+  const td = S.G.tidy
+  if (!td) return
+  const px = 56, py = FIELD_H - 54 // piggy home (lower-left, clear of the path)
+  const t = S.G.time
+  if (!td.ran) {
+    // Waiting for the kid's first tap — a gentle "tap me!" nudge near the door.
+    return
+  }
+  // the piggy, gently bobbing + a soft glow
+  ctx.save()
+  ctx.globalAlpha = 0.5
+  ctx.fillStyle = '#ffd9ec'
+  ctx.beginPath(); ctx.arc(px, py, 30 + Math.sin(t * 4) * 2, 0, Math.PI * 2); ctx.fill()
+  ctx.restore()
+  drawEmoji(ctx, '🐷', px, py + Math.sin(t * 3) * 2, 46)
+
+  // flying coins during the drain window (mirrors the swoosh timing in screens)
+  const drainStart = 0.5, drainDur = 1.3
+  const f = clamp((td.t - drainStart) / drainDur, 0, 1)
+  if (td.coins0 > 0 && f > 0 && f < 1) {
+    const fromX = FIELD_W / 2, fromY = FIELD_H / 2
+    const n = 5
+    for (let i = 0; i < n; i++) {
+      // each coin staggered along the window so they stream into the piggy
+      let cf = f * 1.4 - i * 0.12
+      cf = clamp(cf, 0, 1)
+      if (cf <= 0 || cf >= 1) continue
+      const ease = cf * cf * (3 - 2 * cf)
+      const cx = fromX + (px - fromX) * ease
+      const cy = fromY + (py - fromY) * ease - Math.sin(ease * Math.PI) * 40 // arc up
+      ctx.globalAlpha = clamp(1 - ease, 0.2, 1)
+      drawEmoji(ctx, '🪙', cx, cy, 24)
+      ctx.globalAlpha = 1
+    }
+  }
+  // count badge above the piggy as it ticks down
+  if (td.coins0 > 0) {
+    ctx.fillStyle = '#fff'
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)'
+    ctx.lineWidth = 4
+    ctx.font = `800 18px 'Baloo 2', system-ui, sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    const label = `🪙 ${td.coins}`
+    ctx.strokeText(label, px, py - 36)
+    ctx.fillText(label, px, py - 36)
+  }
+}
+
 function roundRect(x, y, w, h, r) {
   ctx.beginPath()
   ctx.moveTo(x + r, y)
@@ -204,7 +266,29 @@ function roundRect(x, y, w, h, r) {
 }
 
 function drawTowers() {
+  const tidy = S.G.phase === 'tidyup' ? S.G.tidy : null
   for (const t of S.G.towers) {
+    // §9 — during the tidy-up ritual, helpers hop off one by one: a brief
+    // anticipatory hop just before their exit time, then a pop-and-vanish.
+    if (tidy && tidy.ran) {
+      if (t.popped) continue // already hopped off — popEffect did the burst
+      const until = (t.exitAt || 0) - tidy.t
+      if (until < 0.35) {
+        // wind-up hop: lift + lean in the exit direction
+        const p = clamp(1 - until / 0.35, 0, 1)
+        ctx.save()
+        ctx.translate((t.exitDir || 1) * p * 10, -Math.sin(p * Math.PI) * 16)
+        drawTowerBody(t)
+        ctx.restore()
+        continue
+      }
+    }
+    drawTowerBody(t)
+  }
+}
+
+function drawTowerBody(t) {
+  {
     const sel = S.G.selectedTower === t
     if (sel && towerStat(t, 'range') > 0) {
       const rangePx = towerStat(t, 'range') * TILE

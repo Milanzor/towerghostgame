@@ -14,24 +14,33 @@
 html, body {
   margin: 0;
   height: 100%;
+  height: 100dvh;
   background: radial-gradient(circle at 50% 0%, #4a3570 0%, #241640 60%, #160d28 100%);
   color: var(--paper);
   overflow: hidden;
   user-select: none;
+  -webkit-user-select: none;
   touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overscroll-behavior: none;
 }
 
 #app {
   height: 100%;
+  height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 8px;
+  padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
 }
 
 .game {
   width: 100%;
-  max-width: 1000px;
+  /* Cap width so the 15:8 canvas + HUD + palette always fit the screen height.
+     960/512 = 1.875; ~190px is reserved for the HUD and helper strip. */
+  max-width: min(1100px, calc((100dvh - 190px) * 1.875));
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -212,6 +221,11 @@ canvas {
 }
 .prep-banner.hidden { display: none; }
 .prep-banner b { color: var(--gold); }
+.prep-banner.boss {
+  border-color: #ff7ad1;
+  background: rgba(60, 12, 50, 0.85);
+}
+.prep-banner.boss b { color: #ffd34d; }
 @keyframes bannerBob {
   0%, 100% { transform: translateX(-50%) translateY(0); }
   50% { transform: translateX(-50%) translateY(-4px); }
@@ -265,13 +279,37 @@ canvas {
 .star-on { filter: drop-shadow(0 0 12px var(--gold)); }
 .star-off { opacity: .25; }
 
-/* Level select */
+/* Level select — grouped by area */
+.area {
+  margin-top: 18px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 3px solid rgba(0, 0, 0, 0.3);
+  border-radius: 18px;
+  padding: 10px 12px 14px;
+}
+.area.area-locked { opacity: 0.55; }
+.area-head {
+  font-size: clamp(16px, 3.2vw, 22px);
+  font-weight: 900;
+  text-align: left;
+  margin: 2px 0 4px;
+  text-shadow: 0 2px 0 #1a0f30;
+}
 .levels {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 14px;
-  margin-top: 18px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-top: 8px;
 }
+@media (max-width: 560px) {
+  .levels { grid-template-columns: repeat(3, 1fr); }
+}
+.lvl.boss {
+  background: linear-gradient(#7a4a2e, #5a2f72);
+  border-color: var(--gold);
+  box-shadow: 0 5px 0 #1a0f30, 0 0 14px rgba(255, 211, 77, 0.4);
+}
+.lvl.boss .lname { font-weight: 800; }
 .lvl {
   background: linear-gradient(#5a4a82, #463670);
   border: 4px solid #2a1a4a;

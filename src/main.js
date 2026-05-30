@@ -1,7 +1,7 @@
 import './style.css'
 import {
   TILE, COLS, ROWS, FIELD_W, FIELD_H,
-  TOWERS, TOWER_ORDER, ENEMIES, LEVELS,
+  TOWERS, TOWER_ORDER, ENEMIES, LEVELS, AREAS,
 } from './content.js'
 import { sfx, music, setMuted, isMuted } from './audio.js'
 import { initUpdateCheck } from './update-check.js'
@@ -9,7 +9,7 @@ import { initUpdateCheck } from './update-check.js'
 // ===========================================================================
 // Save / progress
 // ===========================================================================
-const SAVE_KEY = 'ghostcatchers-v2'
+const SAVE_KEY = 'ghostcatchers-v3'
 
 function loadSave() {
   try {
@@ -332,6 +332,14 @@ function makeEnemy(type, opts = {}) {
     shield: def.shield || 0,
     bobPhase: Math.random() * Math.PI * 2,
     facing: opts.facing ?? 1,
+    // boss state
+    boss: def.boss || null,
+    summonTimer: def.boss?.summon ? def.boss.summon.interval : 0,
+    hexTimer: def.boss?.hex ? def.boss.hex.interval : 0,
+    blinkTimer: def.boss?.blink ? def.boss.blink.interval : 0,
+    phaseTimer: def.boss?.phaseShield ? def.boss.phaseShield.interval : 0,
+    invuln: 0,
+    enraged: false,
   }
 }
 
@@ -392,9 +400,14 @@ function updateEnemies(dt) {
     }
     if (e.dead) continue
 
+    // boss tricks (summon / hex / enrage / blink / phase-shield)
+    if (e.boss) updateBoss(e, dt)
+    if (e.leaked) continue // a blink may have pushed it off the end
+
     let eff = 1
     if (e.slowTimer > 0) { e.slowTimer -= dt; eff = e.slowFactor }
-    const speed = e.def.speed * eff * TILE
+    const bossMult = e.enraged ? e.boss.enrage.mult : 1
+    const speed = e.def.speed * eff * bossMult * TILE
     let remain = speed * dt
     while (remain > 0 && e.seg < wp.length) {
       const tx = wp[e.seg].x
@@ -434,6 +447,11 @@ function updateEnemies(dt) {
 
 function damageEnemy(e, dmg, opts) {
   if (e.dead) return
+  // boss phase shield — totally invincible for a moment
+  if (e.invuln > 0) {
+    if (Math.random() < 0.25) ringEffect(e.x, e.y, e.def.radius + 4, '#8cff9e')
+    return
+  }
   // shield bubble eats whole hits (but not DoT ticks)
   if (e.shield > 0 && !(opts && opts.trueDmg)) {
     e.shield--
@@ -468,6 +486,82 @@ function killEnemy(e, opts) {
   }
 }
 
+// --- Boss abilities (each boss uses a different trick) ---
+function updateBoss(e, dt) {
+  const b = e.boss
+  // Summon: periodically call little minions that continue down the path.
+  if (b.summon) {
+    e.summonTimer -= dt
+    if (e.summonTimer <= 0) {
+      e.summonTimer = b.summon.interval
+      for (let i = 0; i < b.summon.count; i++) {
+        const jitter = (i - (b.summon.count - 1) / 2) * 10
+        G.enemies.push(makeEnemy(b.summon.type, { x: e.x, y: e.y + jitter, seg: e.seg, dist: e.dist, facing: e.facing }))
+      }
+      floatText(e.x, e.y - e.def.radius - 18, 'Minions!', '#c9a0ff', 18)
+      ringEffect(e.x, e.y, e.def.radius + 10, '#c9a0ff')
+    }
+  }
+  // Hex: freeze every helper near the boss for a short while.
+  if (b.hex) {
+    e.hexTimer -= dt
+    if (e.hexTimer <= 0) {
+      e.hexTimer = b.hex.interval
+      const rPx = b.hex.radius * TILE
+      let any = false
+      for (const t of G.towers) {
+        const dx = t.cx - e.x, dy = t.cy - e.y
+        if (dx * dx + dy * dy <= rPx * rPx) { t.disabledTimer = b.hex.dur; any = true }
+      }
+      if (any) { floatText(e.x, e.y - e.def.radius - 18, '❄️ Hex!', '#9be8ff', 18); ringEffect(e.x, e.y, rPx, '#9be8ff'); sfx.freeze() }
+    }
+  }
+  // Enrage: speed up once badly hurt (handled in the movement code via mult).
+  if (b.enrage && !e.enraged && e.hp < e.maxHp * b.enrage.hpFrac) {
+    e.enraged = true
+    floatText(e.x, e.y - e.def.radius - 18, '😡 ENRAGED!', '#ff6b5a', 20)
+    ringEffect(e.x, e.y, e.def.radius + 14, '#ff6b5a')
+    G.shake = Math.min(14, G.shake + 8)
+  }
+  // Blink: teleport forward along the path.
+  if (b.blink) {
+    e.blinkTimer -= dt
+    if (e.blinkTimer <= 0) {
+      e.blinkTimer = b.blink.interval
+      popEffect(e.x, e.y, e.def.color)
+      advanceAlongPath(e, b.blink.dist * TILE)
+      popEffect(e.x, e.y, e.def.color)
+      floatText(e.x, e.y - e.def.radius - 18, '✨ Blink!', '#ffd34d', 18)
+    }
+  }
+  // Phase shield: become invincible for a couple of seconds now and then.
+  if (b.phaseShield) {
+    if (e.invuln > 0) {
+      e.invuln -= dt
+    } else {
+      e.phaseTimer -= dt
+      if (e.phaseTimer <= 0) {
+        e.phaseTimer = b.phaseShield.interval
+        e.invuln = b.phaseShield.dur
+        floatText(e.x, e.y - e.def.radius - 18, '🛡️ Shield!', '#8cff9e', 18)
+      }
+    }
+  }
+}
+
+function advanceAlongPath(e, dist) {
+  const wp = G.level.waypoints
+  let remain = dist
+  while (remain > 0 && e.seg < wp.length) {
+    const dx = wp[e.seg].x - e.x
+    const dy = wp[e.seg].y - e.y
+    const d = Math.hypot(dx, dy)
+    if (d <= remain) { e.x = wp[e.seg].x; e.y = wp[e.seg].y; e.dist += d; remain -= d; e.seg++ }
+    else { e.x += (dx / d) * remain; e.y += (dy / d) * remain; e.dist += remain; remain = 0 }
+  }
+  if (e.seg >= wp.length) e.leaked = true
+}
+
 function applyBurn(e, dps, dur) {
   e.burnDps = Math.max(e.burnDps, dps)
   e.burnTimer = Math.max(e.burnTimer, dur)
@@ -477,6 +571,7 @@ function applyPoison(e, dps, dur) {
   e.poisonTimer = Math.max(e.poisonTimer, dur)
 }
 function applySlow(e, factor, dur) {
+  if (e.def.slowImmune) return // bosses that shrug off frost
   e.slowFactor = Math.min(e.slowFactor === 1 ? factor : Math.min(e.slowFactor, factor), factor)
   e.slowTimer = Math.max(e.slowTimer, dur)
 }
@@ -544,6 +639,8 @@ function updateTowers(dt) {
   for (const t of G.towers) {
     t.cd -= dt
     t.beamTo = null
+    // hexed by a boss — frozen solid, can't fire
+    if (t.disabledTimer > 0) { t.disabledTimer -= dt; continue }
     if (t.cd > 0) continue
     const kind = t.def.kind
 
@@ -756,6 +853,7 @@ function placeTower(c, r) {
     totalSpent: def.cost,
     beamTo: null,
     frostPulse: 0,
+    disabledTimer: 0,
   })
   G.occupied.add(`${c},${r}`)
   sfx.place()
@@ -878,8 +976,11 @@ document.getElementById('menuBtn').addEventListener('click', () => {
 function showPrepBanner() {
   const isFirst = !G.started
   prepBanner.innerHTML = isFirst
-    ? `🛡️ Place your helpers, then press <b>Start!</b>`
+    ? (G.level.isBoss
+        ? `👑 <b>BOSS room!</b> Build your team, then press <b>Start!</b>`
+        : `🛡️ Place your helpers, then press <b>Start!</b>`)
     : `✅ Wave ${G.waveIndex} cleared! Build more, then press <b>Next Wave!</b>`
+  prepBanner.classList.toggle('boss', !!G.level.isBoss && isFirst)
   prepBanner.classList.remove('hidden')
 }
 function hidePrepBanner() {
@@ -920,15 +1021,26 @@ function showLevelSelect() {
   screen = 'select'
   hideActionBar()
   music.stop()
-  let cells = ''
-  LEVELS.forEach((lv, i) => {
-    const locked = i > save.unlocked
-    const stars = save.stars[i] || 0
-    cells += `
-      <div class="lvl ${locked ? 'locked' : ''}" data-i="${i}">
-        <div class="num">${locked ? '🔒' : (lv.emoji || i + 1)}</div>
-        <div class="lname">${locked ? '???' : lv.name}</div>
-        <div class="ministars">${locked ? '' : starString(stars)}</div>
+  let sections = ''
+  AREAS.forEach((area) => {
+    const areaLocked = area.levelIndices[0] > save.unlocked
+    let tiles = ''
+    area.levelIndices.forEach((i, li) => {
+      const lv = LEVELS[i]
+      const locked = i > save.unlocked
+      const stars = save.stars[i] || 0
+      const num = locked ? '🔒' : (lv.isBoss ? '👑' : li + 1)
+      tiles += `
+        <div class="lvl ${locked ? 'locked' : ''} ${lv.isBoss ? 'boss' : ''}" data-i="${i}">
+          <div class="num">${num}</div>
+          <div class="lname">${locked ? '???' : lv.name}</div>
+          <div class="ministars">${locked ? '' : starString(stars)}</div>
+        </div>`
+    })
+    sections += `
+      <div class="area ${areaLocked ? 'area-locked' : ''}">
+        <div class="area-head">${area.emoji} ${area.name}${areaLocked ? ' 🔒' : ''}</div>
+        <div class="levels">${tiles}</div>
       </div>`
   })
   const totalStars = Object.values(save.stars).reduce((a, b) => a + b, 0)
@@ -936,8 +1048,8 @@ function showLevelSelect() {
     <div class="card wide">
       <h1>Pick a Room</h1>
       <p>⭐ Stars collected: <b>${totalStars} / ${LEVELS.length * 3}</b></p>
-      <div class="levels">${cells}</div>
-      <div class="hint">Beat a room to unlock the next one!</div>
+      ${sections}
+      <div class="hint">Beat a room to unlock the next! Each world ends with a 👑 BOSS.</div>
     </div>`
   hideAllOverlays()
   ovSelect.classList.remove('hidden')
@@ -953,7 +1065,7 @@ function startLevel(i) {
   screen = 'playing'
   hideAllOverlays()
   hideActionBar()
-  elLevelName.textContent = LEVELS[i].name
+  elLevelName.textContent = `${LEVELS[i].areaEmoji} ${LEVELS[i].name}`
   document.getElementById('speedBtn').textContent = '⏩'
   showPrepBanner()
   refreshPalette()
@@ -1214,6 +1326,13 @@ function drawTowers() {
       ctx.font = '14px serif'
       ctx.fillText('⭐', t.cx + 16, t.cy - 16)
     }
+    // hexed / frozen by a boss
+    if (t.disabledTimer > 0) {
+      ctx.fillStyle = 'rgba(150,220,255,0.5)'
+      ctx.beginPath(); ctx.arc(t.cx, t.cy, 24, 0, Math.PI * 2); ctx.fill()
+      ctx.font = '18px serif'
+      ctx.fillText('❄️', t.cx, t.cy)
+    }
     // active suck beam
     if (t.beamTo && !t.beamTo.dead) {
       drawSuckBeam(t, t.beamTo)
@@ -1362,6 +1481,19 @@ function drawCritter(e) {
 }
 
 function drawStatus(e, cx, cy, r) {
+  // boss: enraged red aura
+  if (e.enraged) {
+    ctx.strokeStyle = `rgba(255,90,70,${0.4 + Math.sin(G.time * 12) * 0.2})`
+    ctx.lineWidth = 4
+    ctx.beginPath(); ctx.arc(cx, cy, r + 6, 0, Math.PI * 2); ctx.stroke()
+  }
+  // boss: phase-shield bubble
+  if (e.invuln > 0) {
+    ctx.fillStyle = `rgba(140,255,158,${0.18 + Math.sin(G.time * 16) * 0.08})`
+    ctx.strokeStyle = 'rgba(140,255,158,0.8)'
+    ctx.lineWidth = 3
+    ctx.beginPath(); ctx.arc(cx, cy, r + 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+  }
   let bx = cx - r * 0.7
   const by = cy - r - 16
   ctx.font = '13px serif'
@@ -1490,6 +1622,26 @@ function frame(now) {
 
   requestAnimationFrame(frame)
 }
+
+// ===========================================================================
+// iPad / touch polish — stop double-tap and pinch from zooming the page.
+// (iOS Safari ignores user-scalable=no, so we block the gestures ourselves.)
+// ===========================================================================
+let lastTouchEnd = 0
+document.addEventListener('touchend', (e) => {
+  const now = Date.now()
+  if (now - lastTouchEnd <= 350) e.preventDefault() // double-tap zoom
+  lastTouchEnd = now
+}, { passive: false })
+// Pinch-zoom gestures (Safari-specific events)
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(ev, (e) => e.preventDefault())
+}
+// Block multi-finger touchmoves (pinch) without killing single-finger drags.
+document.addEventListener('touchmove', (e) => {
+  if (e.touches && e.touches.length > 1) e.preventDefault()
+}, { passive: false })
+document.addEventListener('dblclick', (e) => e.preventDefault())
 
 // ===========================================================================
 // Boot

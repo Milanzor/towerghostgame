@@ -20,9 +20,13 @@ and loads instantly. Builds straight into `docs/` for GitHub Pages.
 5. Tap a placed helper to **⬆️ Upgrade** it or **🗑️ Sell** it.
 6. Clear all the waves to win ⭐ stars and unlock the next room!
 
-There are **12 progressively harder rooms**, **15 helpers** and **20 cute monster types**
-(with armour, shields, healing and splitting), ending with **King Boo 👑** and friends.
-Stars and progress are saved automatically in the browser.
+There are **5 worlds** of **5 rooms each (25 levels)** — Haunted Mansion 🏚️, Frozen
+Caverns 🧊, Goblin Dungeon ⛓️, Volcano Keep 🌋 and Cosmic Void 🪐 — each with its own
+theme and monsters. Every world ends with a **unique 👑 BOSS** with its own trick
+(summoning minions, freezing your helpers, enraging, teleporting, or a phase shield).
+With **15 helpers** and **20 cute monster types** (armour, shields, healing, splitting)
+plus the 5 bosses, it's plenty to master. Optimised for tablets/iPad (double-tap zoom
+off, scales to fit). Stars and progress are saved automatically in the browser.
 
 ## Develop
 

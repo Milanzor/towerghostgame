@@ -3,7 +3,7 @@ import {
   TILE, COLS, ROWS, FIELD_W, FIELD_H,
   TOWERS, TOWER_ORDER, ENEMIES, LEVELS,
 } from './content.js'
-import { sfx, setMuted, isMuted } from './audio.js'
+import { sfx, music, setMuted, isMuted } from './audio.js'
 import { initUpdateCheck } from './update-check.js'
 
 // ===========================================================================
@@ -47,7 +47,9 @@ app.innerHTML = `
       <div class="action-bar hidden" id="actionBar"></div>
     </div>
     <div class="palette" id="palette">
+      <button class="strip-arrow" id="stripLeft" title="Scroll left">◀</button>
       <div class="tower-strip" id="towerStrip"></div>
+      <button class="strip-arrow" id="stripRight" title="Scroll right">▶</button>
       <button class="go-btn" id="goBtn"></button>
     </div>
   </div>
@@ -154,6 +156,21 @@ function buildPalette() {
   }
   goBtn = document.getElementById('goBtn')
   goBtn.addEventListener('click', onGo)
+
+  // Scroll arrows (so swiping a helper never fights with the strip scroll).
+  const scrollStep = () => Math.max(160, towerStrip.clientWidth * 0.7)
+  document.getElementById('stripLeft').addEventListener('click', () => {
+    sfx.click(); towerStrip.scrollBy({ left: -scrollStep(), behavior: 'smooth' })
+  })
+  document.getElementById('stripRight').addEventListener('click', () => {
+    sfx.click(); towerStrip.scrollBy({ left: scrollStep(), behavior: 'smooth' })
+  })
+  // Mouse wheel over the strip scrolls it sideways.
+  towerStrip.addEventListener('wheel', (e) => {
+    if (e.deltaY === 0) return
+    e.preventDefault()
+    towerStrip.scrollBy({ left: e.deltaY })
+  }, { passive: false })
 }
 
 function selectTowerType(key) {
@@ -182,23 +199,29 @@ function onGo() {
 // ===========================================================================
 let dragKey = null
 let dragGhostEl = null
-let dragMoved = false
 let justDragged = false
+// "pending" gesture: a press on a helper that hasn't yet decided whether it's a
+// sideways scroll-swipe or a deliberate drag up onto the field.
+let pendKey = null
+let pendX = 0
+let pendY = 0
+let pendActive = false
 
 function attachDrag(btn, key) {
   btn.addEventListener('pointerdown', (ev) => {
     if (screen !== 'playing') return
     justDragged = false // fresh press — let the trailing click through
-    if (G.coins < TOWERS[key].cost) return // can't afford → no drag
-    ev.preventDefault()
-    startDrag(key, ev)
+    if (G.coins < TOWERS[key].cost) return // can't afford → tap only (no drag)
+    // Don't grab yet — wait for the first move to tell drag from scroll.
+    pendKey = key
+    pendX = ev.clientX
+    pendY = ev.clientY
+    pendActive = true
   })
 }
 
-function startDrag(key, ev) {
+function startDrag(key, clientX, clientY) {
   dragKey = key
-  dragMoved = false
-  justDragged = false
   G.selectedTower = null
   hideActionBar()
   G.selectedType = key
@@ -208,7 +231,7 @@ function startDrag(key, ev) {
   dragGhostEl.className = 'drag-ghost'
   dragGhostEl.textContent = def.emoji
   document.body.appendChild(dragGhostEl)
-  moveDragGhost(ev.clientX, ev.clientY)
+  moveDragGhost(clientX, clientY)
 }
 
 function moveDragGhost(x, y) {
@@ -219,28 +242,45 @@ function moveDragGhost(x, y) {
 }
 
 window.addEventListener('pointermove', (ev) => {
-  if (!dragKey) return
-  dragMoved = true
-  moveDragGhost(ev.clientX, ev.clientY)
-  // reflect hover cell for the on-field preview
-  const cell = cellFromClient(ev.clientX, ev.clientY)
-  G.hoverCell = cell // may be null when off-canvas
+  if (dragKey) {
+    moveDragGhost(ev.clientX, ev.clientY)
+    G.hoverCell = cellFromClient(ev.clientX, ev.clientY) // null when off-canvas
+    return
+  }
+  if (!pendActive) return
+  const dx = ev.clientX - pendX
+  const dy = ev.clientY - pendY
+  if (dy < -10 && Math.abs(dy) > Math.abs(dx)) {
+    // pulled up toward the field → pick the helper up
+    const k = pendKey
+    pendActive = false; pendKey = null
+    startDrag(k, ev.clientX, ev.clientY)
+  } else if (Math.abs(dx) > 12) {
+    // sideways swipe → let the strip scroll natively, no drag
+    pendActive = false; pendKey = null
+  }
 })
 
 window.addEventListener('pointerup', (ev) => {
-  if (!dragKey) return
-  const cell = cellFromClient(ev.clientX, ev.clientY)
-  if (cell && dragMoved) {
-    G.selectedType = dragKey
-    placeTower(cell.c, cell.r)
-    justDragged = true // suppress the click-toggle that follows
+  if (dragKey) {
+    const cell = cellFromClient(ev.clientX, ev.clientY)
+    if (cell) {
+      G.selectedType = dragKey
+      placeTower(cell.c, cell.r)
+      justDragged = true // suppress the click-toggle that follows
+    }
+    endDrag()
   }
-  endDrag()
+  pendActive = false; pendKey = null
+})
+
+window.addEventListener('pointercancel', () => {
+  if (dragKey) endDrag()
+  pendActive = false; pendKey = null
 })
 
 function endDrag() {
   dragKey = null
-  dragMoved = false
   G.hoverCell = null
   if (dragGhostEl) { dragGhostEl.remove(); dragGhostEl = null }
 }
@@ -852,6 +892,7 @@ function hidePrepBanner() {
 function showStart() {
   screen = 'start'
   hideActionBar()
+  music.stop()
   ovStart.innerHTML = `
     <div class="card">
       <h1>👻 Ghost Catchers</h1>
@@ -878,6 +919,7 @@ function starString(n) {
 function showLevelSelect() {
   screen = 'select'
   hideActionBar()
+  music.stop()
   let cells = ''
   LEVELS.forEach((lv, i) => {
     const locked = i > save.unlocked
@@ -915,6 +957,7 @@ function startLevel(i) {
   document.getElementById('speedBtn').textContent = '⏩'
   showPrepBanner()
   refreshPalette()
+  music.play(i) // each room has its own tune
 }
 
 function computeStars() {
@@ -931,6 +974,7 @@ function win() {
   if (i + 1 > save.unlocked && i + 1 < LEVELS.length) save.unlocked = i + 1
   if (i + 1 >= LEVELS.length) save.unlocked = Math.max(save.unlocked, LEVELS.length - 1)
   writeSave()
+  music.stop()
   sfx.win()
   hidePrepBanner()
   const isLast = i + 1 >= LEVELS.length
@@ -959,6 +1003,7 @@ function win() {
 
 function lose() {
   G.phase = 'done'
+  music.stop()
   sfx.lose()
   hidePrepBanner()
   const i = G.levelIndex

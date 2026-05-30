@@ -112,12 +112,30 @@ canvas {
   display: flex;
   gap: 8px;
   flex: 1 1 auto;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   padding-bottom: 4px;
   scrollbar-width: thin;
+  scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x; /* sideways swipe scrolls; vertical drag → pick up helper */
 }
+.strip-arrow {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 34px;
+  background: linear-gradient(#5a4a82, #463670);
+  color: var(--paper);
+  border: 4px solid #2a1a4a;
+  border-radius: 14px;
+  font-size: 18px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 5px 0 #1a0f30;
+  touch-action: manipulation;
+}
+.strip-arrow:active { transform: translateY(3px); box-shadow: 0 2px 0 #1a0f30; }
 .tower-strip::-webkit-scrollbar { height: 7px; }
 .tower-strip::-webkit-scrollbar-thumb { background: #2a1a4a; border-radius: 6px; }
 .tower-btn {
@@ -133,7 +151,7 @@ canvas {
   box-shadow: 0 5px 0 #1a0f30;
   transition: transform .05s;
 }
-.tower-btn { touch-action: none; }
+.tower-btn { touch-action: pan-x; }
 .tower-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #1a0f30; }
 .tower-btn.active { outline: 4px solid var(--gold); background: linear-gradient(#6a5a92, #56468a); }
 .tower-btn.cant { opacity: .45; filter: grayscale(.5); }

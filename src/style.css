@@ -772,32 +772,6 @@ canvas {
    §6 Grown-up corner — gear gate, panel, wind-down
    =========================================================================== */
 
-/* the unobtrusive ⚙️ corner button with its hold-to-open fill ring */
-.gear-btn {
-  position: absolute;
-  bottom: 12px;
-  right: 14px;
-  width: 46px;
-  height: 46px;
-  border-radius: 999px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  padding: 0;
-  opacity: 0.55;
-  display: grid;
-  place-items: center;
-}
-.gear-btn:hover { opacity: 0.9; }
-.gear-btn .hold-ring-fill {
-  position: absolute;
-  inset: 0;
-  border-radius: 999px;
-  background: conic-gradient(#7be38c calc(var(--hold, 0) * 360deg), rgba(255,255,255,0.18) 0deg);
-  -webkit-mask: radial-gradient(circle, transparent 56%, #000 58%);
-  mask: radial-gradient(circle, transparent 56%, #000 58%);
-}
-
 /* pill-shaped hold button (the "5 more minutes" gate) — a left→right fill */
 .hold-btn { position: relative; overflow: hidden; }
 .hold-btn .hold-ring-fill {
@@ -810,10 +784,6 @@ canvas {
   pointer-events: none;
 }
 .hold-btn .hold-label { position: relative; z-index: 1; }
-.gear-btn .gear-ico { position: relative; font-size: 24px; line-height: 1; }
-.gear-btn .gear-ico img.emoji { width: 24px; height: 24px; vertical-align: middle; }
-.gear-btn.holding { opacity: 1; transform: scale(1.08); }
-.gear-btn.nudge { animation: gearNudge .6s ease; }
 @keyframes gearNudge {
   0%, 100% { transform: rotate(0); }
   25% { transform: rotate(-14deg); }

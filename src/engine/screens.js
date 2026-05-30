@@ -8,7 +8,6 @@ import { ovStart, ovProfiles, ovSelect, ovResult, ovShop, hideAllOverlays, elLev
 import { hideActionBar } from './towers.js'
 import { refreshPalette, showPrepBanner, hidePrepBanner } from './ui.js'
 import { AVATARS, HATS, HAT_ORDER } from '../cosmetics.js'
-import { gearButtonHTML, wireGearButton } from './grownup.js'
 import { popEffect, floatText } from './effects.js'
 
 
@@ -21,7 +20,6 @@ function showStart() {
   music.stop()
   ovStart.innerHTML = `
     <div class="card wide">
-      ${gearButtonHTML()}
       <h1>👻 Ghost Catchers</h1>
       <p>Spooky-cute monsters are sneaking through the haunted mansion!
       Build <b>flashlights</b> 🔦, <b>frostpuffs</b> ❄️, <b>star wands</b> 🌟 and lots more
@@ -32,7 +30,6 @@ function showStart() {
   twemojify(ovStart)
   hideAllOverlays()
   ovStart.classList.remove('hidden')
-  wireGearButton()
   document.getElementById('playBtn').addEventListener('click', () => {
     sfx.win() // also unlocks audio on first gesture
     showProfiles()
@@ -207,7 +204,6 @@ function showLevelSelect() {
         ${avatarEmoji(prof)} <span>${prof.name}</span>
       </button>
       <button class="shop-chip" id="shopChip" title="Shop">🛍️ <span>✨ ${prof.points}</span></button>
-      ${gearButtonHTML()}
       <h1>Your Journey</h1>
       <p>⭐ Stars collected: <b>${totalStars} / ${LEVELS.length * 3}</b></p>
       <button class="big-btn backyard-btn" id="backyardBtn">🏡 Backyard — free play, no rush!</button>
@@ -221,7 +217,6 @@ function showLevelSelect() {
   twemojify(ovSelect)
   hideAllOverlays()
   ovSelect.classList.remove('hidden')
-  wireGearButton()
   document.getElementById('avatarChip').addEventListener('click', () => { sfx.click(); showProfiles() })
   document.getElementById('shopChip').addEventListener('click', () => { sfx.click(); showShop(showLevelSelect) })
   document.getElementById('backyardBtn').addEventListener('click', () => { sfx.click(); startSandbox() })

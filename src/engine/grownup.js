@@ -174,25 +174,11 @@ function attachHold(btn, onOpen) {
   btn.addEventListener('pointerleave', release)
 }
 
-// The little ⚙️ corner button — markup includes the fill ring used by the hold.
-export function gearButtonHTML() {
-  return `<button class="gear-btn" id="gearBtn" title="Grown-ups">
-    <span class="hold-ring-fill"></span><span class="gear-ico">⚙️</span></button>`
-}
-
-// Wire a freshly-rendered ⚙️ button (called after a screen draws it). Holding it
-// opens the grown-up panel; a quick tap shows a tiny "hold me" nudge.
-export function wireGearButton() {
-  wireHoldGate(document.getElementById('gearBtn'))
-}
-
 // The permanent in-game ⚙️ in the HUD top bar (next to the room name). Wired once
-// at boot — same hold-to-open gate, so opening it mid-game is parent-only.
+// at boot — hold-to-open, so opening the grown-up panel mid-game is parent-only.
+// Holding it opens the panel; a quick tap shows a tiny "hold me" nudge.
 export function wireSettingsButton() {
-  wireHoldGate(document.getElementById('settingsBtn'))
-}
-
-function wireHoldGate(btn) {
+  const btn = document.getElementById('settingsBtn')
   if (!btn) return
   attachHold(btn, () => showGrownupPanel())
   // a quick tap (no hold) gives a gentle, discoverable hint

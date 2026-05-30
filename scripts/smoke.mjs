@@ -185,25 +185,6 @@ async function main() {
   check('back on the map', await visible('ovSelect'))
 
   // ===================================================================
-  // GROWN-UP CORNER (§6) — drive the hold gate, switch to Cozy (no-fail).
-  // Cozy makes the upcoming win deterministic (lives never drop, every wave
-  // clears as monsters are caught or float away).
-  // ===================================================================
-  console.log('\n— grown-up corner / hold gate (§6) —')
-  check('gear gate present', await cdp.eval(`!!document.getElementById('gearBtn')`))
-  await step('press-and-hold the gear', `(() => {
-    const b = document.getElementById('gearBtn')
-    b.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, bubbles: true }))
-    return 'holding'
-  })()`)
-  await sleep(2400) // ~2s hold (the rAF ring fills and opens the panel itself)
-  check('grown-up panel opened by the hold', await visible('ovGrownup'))
-  await step('choose 😌 Cozy', `(() => { const e = document.querySelector('#ovGrownup [data-vibe="cozy"]'); if (!e) return 'missing'; e.click(); return 'ok' })()`)
-  await sleep(150)
-  await act('close panel', '#gpDone')
-  await sleep(250)
-
-  // ===================================================================
   // ENTER A ROOM → LEVELING
   // ===================================================================
   console.log('\n— play: place + level up helpers —')
@@ -211,6 +192,26 @@ async function main() {
   await sleep(800)
   check('palette built', (await count('.tower-btn')) >= 1, `${await count('.tower-btn')} helpers`)
   check('in-game settings ⚙️ present in HUD (next to room name)', await cdp.eval(`!!document.getElementById('settingsBtn')`))
+
+  // ===================================================================
+  // GROWN-UP CORNER (§6) — open the in-game HUD ⚙️ gate, switch to Cozy
+  // (no-fail) so the upcoming win is deterministic, then resume the room.
+  // No wave has started yet, so flipping to Cozy now can't have cost a life.
+  // ===================================================================
+  console.log('\n— grown-up corner via in-game HUD gate (§6) —')
+  await step('press-and-hold the in-game ⚙️', `(() => {
+    const b = document.getElementById('settingsBtn')
+    b.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, bubbles: true }))
+    return 'holding'
+  })()`)
+  await sleep(2400) // ~2s hold (the rAF ring fills and opens the panel itself)
+  check('grown-up panel opened by the hold', await visible('ovGrownup'))
+  await step('choose 😌 Cozy', `(() => { const e = document.querySelector('#ovGrownup [data-vibe="cozy"]'); if (!e) return 'missing'; e.click(); return 'ok' })()`)
+  await sleep(150)
+  await act('close panel (resume room)', '#gpDone')
+  await sleep(250)
+  check('settings closed → back in the room', !(await visible('ovGrownup')))
+
   await step('speed up to 3×', `(document.getElementById('speedBtn').click(), document.getElementById('speedBtn').click(), 'ok')`)
 
   // leveling (headline): place a Candle, upgrade twice

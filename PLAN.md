@@ -389,6 +389,41 @@ background pokes from the stop hit-targets.
 
 ---
 
+## 9. Closure ritual — "tidy up"  *(make finishing feel as good as playing)*
+
+**Player experience:** little kids *love* putting things away. After a level win
+(`win()`), before the result overlay, a calm ~3-second **tidy-up ritual** the kid
+triggers with one big satisfying tap:
+
+- 👋 helpers **wave and hop off the field** one by one (a little stagger, each
+  with a `sfx` pop).
+- 🪙 leftover **coins swoosh into a piggy bank** with a rising pitch + counter
+  tick (reuse the coin-magnet feel from the juice ideas).
+- 🏚️💤 the **house tucks in** — windows dim, door gives a cozy yawn (pairs with
+  the "living mansion" mood + the §6 wind-down).
+- The avatar (§1) does a content little **clap/stretch** as the board clears.
+
+A repeatable, low-stakes button-press that turns *the end* into a reward — and a
+graceful bridge into the result/stars screen.
+
+**Engine/UI work (`main.js`):**
+- Insert a short **`tidyup` phase** between win detection and `showResult`:
+  a "✨ Tidy up!" button → plays the staggered animations → then reveals stars.
+- Animate helper exits (fade/hop off their tiles), a coins→piggy tween, and the
+  house dim. All canvas + `drawEmoji`, so it stays iPad-safe.
+- Make it **skippable** (a second tap fast-forwards to the result) so it never
+  becomes a chore on replays.
+
+**Files:** `main.js` (tidyup phase, animations, win→result hook), `style.css`
+(button), `audio.js` (swoosh/pop/tuck cues), `emoji.js` (re-vendor any new emoji
+🐷💤…).
+
+**Risks:** keep it **short and skippable** — magic at 3s, tedious at 8s. Don't
+block the result/stars or the unlock from happening if the kid taps away. Reuses
+avatar (§1) + house mood, so ideally lands after those.
+
+---
+
 ## Suggested sequencing (avoids stepping on the tower agent)
 
 0. **Kid profiles (§7)** — ideally *first*: it changes the save shape, so doing
@@ -404,6 +439,8 @@ background pokes from the stop hit-targets.
 4. **Grown-up corner (§6)** — `main.js` + `style.css` + `audio.js`. Safe.
 4b. **World map journey (§8)** — `main.js` + `style.css`; build *after* §1 so the
    avatar token + cheer already exist. No `content.js`. Safe.
+4c. **Tidy-up closure ritual (§9)** — `main.js` + `style.css` + `audio.js`; lands
+   best *after* §1 (avatar clap) but works standalone. No `content.js`. Safe.
 5. **Enemy powers (§3)** — engine half (`main.js`) anytime; data half
    (`content.js`) *after* the tower agent's content lands, as a small
    rebuild-on-top commit.

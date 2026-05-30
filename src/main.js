@@ -78,6 +78,12 @@ function sizeCanvas() {
 sizeCanvas()
 window.addEventListener('resize', sizeCanvas)
 
+// Canvas needs an explicit colour-emoji font stack — the generic `serif`
+// family doesn't resolve emoji on iOS/Safari (and some others), which made
+// placed helpers/monsters show only their coloured platform, no icon.
+const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji","Twemoji Mozilla","EmojiOne Color","Android Emoji",sans-serif'
+const ef = (px) => `${px}px ${EMOJI_FONT}`
+
 // ===========================================================================
 // Overlays
 // ===========================================================================
@@ -1271,7 +1277,7 @@ function drawDoor(x, y) {
   roundRect(-15, -24, 30, 48, 6); ctx.fill()
   ctx.fillStyle = '#ffd34d'
   ctx.beginPath(); ctx.arc(8, 4, 3, 0, Math.PI * 2); ctx.fill()
-  ctx.font = '20px serif'
+  ctx.font = ef(20)
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
   ctx.fillText('🏚️', 0, -46)
   ctx.restore()
@@ -1318,19 +1324,19 @@ function drawTowers() {
     ctx.lineWidth = 3
     ctx.beginPath(); ctx.arc(t.cx, t.cy, 24, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
     // emoji
-    ctx.font = '30px serif'
+    ctx.font = ef(30)
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillText(t.def.emoji, t.cx, t.cy + 1)
     // level pips
     if (t.level >= 2) {
-      ctx.font = '14px serif'
+      ctx.font = ef(14)
       ctx.fillText('⭐', t.cx + 16, t.cy - 16)
     }
     // hexed / frozen by a boss
     if (t.disabledTimer > 0) {
       ctx.fillStyle = 'rgba(150,220,255,0.5)'
       ctx.beginPath(); ctx.arc(t.cx, t.cy, 24, 0, Math.PI * 2); ctx.fill()
-      ctx.font = '18px serif'
+      ctx.font = ef(18)
       ctx.fillText('❄️', t.cx, t.cy)
     }
     // active suck beam
@@ -1366,7 +1372,7 @@ function drawProjectiles() {
     ctx.strokeStyle = 'rgba(0,0,0,0.3)'
     ctx.lineWidth = 2
     ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
-    ctx.font = '14px serif'
+    ctx.font = ef(14)
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillText('💥', p.x, p.y)
   }
@@ -1415,7 +1421,7 @@ function drawGhost(e) {
   // crown for king
   if (def.crown) {
     ctx.fillStyle = '#ffd34d'
-    ctx.font = `${r}px serif`
+    ctx.font = ef(r)
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillText('👑', cx, cy - r * 0.95)
   }
@@ -1472,7 +1478,7 @@ function drawCritter(e) {
   }
 
   // emoji face
-  ctx.font = `${Math.round(r * 1.5)}px serif`
+  ctx.font = ef(Math.round(r * 1.5))
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
   ctx.fillText(def.emoji, cx, cy + 1)
 
@@ -1496,7 +1502,7 @@ function drawStatus(e, cx, cy, r) {
   }
   let bx = cx - r * 0.7
   const by = cy - r - 16
-  ctx.font = '13px serif'
+  ctx.font = ef(13)
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
   if (e.shield > 0) { ctx.fillText('🛡️', bx, by); bx += 14 }
   if (e.burnTimer > 0) { ctx.fillText('🔥', bx, by); bx += 14 }
@@ -1544,7 +1550,7 @@ function drawParticles() {
       ctx.fillStyle = p.color
       ctx.strokeStyle = 'rgba(0,0,0,0.6)'
       ctx.lineWidth = 4
-      ctx.font = `800 ${p.size}px 'Baloo 2', sans-serif`
+      ctx.font = `800 ${p.size}px 'Baloo 2', ${EMOJI_FONT}`
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
       ctx.strokeText(p.text, p.x, p.y)
       ctx.fillText(p.text, p.x, p.y)
@@ -1573,7 +1579,7 @@ function drawPlacementPreview() {
   roundRect(c * TILE + 4, r * TILE + 4, TILE - 8, TILE - 8, 10); ctx.fill()
   // ghost preview of tower
   ctx.globalAlpha = 0.75
-  ctx.font = '30px serif'
+  ctx.font = ef(30)
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
   ctx.fillText(def.emoji, cx, cy)
   ctx.globalAlpha = 1

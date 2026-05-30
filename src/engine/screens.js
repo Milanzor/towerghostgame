@@ -1,6 +1,7 @@
 // Start screen, room picker, and the win/lose result screens.
-import { S, writeSave, newGame, currentProfile, setActiveProfile, addProfile, listProfiles } from './state.js'
+import { S, writeSave, newGame, newSandbox, currentProfile, setActiveProfile, addProfile, listProfiles } from './state.js'
 import { LEVELS, AREAS } from '../content.js'
+import { BACKYARD } from '../backyard.js'
 import { sfx, music } from '../audio.js'
 import { twemojify, setEmojiText } from '../emoji.js'
 import { ovStart, ovProfiles, ovSelect, ovResult, ovShop, hideAllOverlays, elLevelName } from './dom.js'
@@ -130,6 +131,7 @@ function showLevelSelect() {
       <button class="shop-chip" id="shopChip" title="Shop">🛍️ <span>✨ ${prof.points}</span></button>
       <h1>Pick a Room</h1>
       <p>⭐ Stars collected: <b>${totalStars} / ${LEVELS.length * 3}</b></p>
+      <button class="big-btn backyard-btn" id="backyardBtn">🏡 Backyard — free play, no rush!</button>
       ${sections}
       <div class="hint">Beat a room to unlock the next! Each world ends with a 👑 BOSS.</div>
     </div>`
@@ -138,6 +140,7 @@ function showLevelSelect() {
   ovSelect.classList.remove('hidden')
   document.getElementById('avatarChip').addEventListener('click', () => { sfx.click(); showProfiles() })
   document.getElementById('shopChip').addEventListener('click', () => { sfx.click(); showShop(showLevelSelect) })
+  document.getElementById('backyardBtn').addEventListener('click', () => { sfx.click(); startSandbox() })
   for (const el of ovSelect.querySelectorAll('.lvl')) {
     const i = +el.dataset.i
     if (i > prof.unlocked) continue
@@ -157,6 +160,30 @@ function startLevel(i) {
   resetAbilities() // rebuild the magic-button tray, clear any armed aim
   resetMascot() // avatar back to idle for the new room
   music.play(i) // each room has its own tune
+}
+
+// §5 — start the no-fail endless Backyard sandbox. Mirrors startLevel() but
+// builds the synthetic BACKYARD state (G.endless) and never touches the save.
+function startSandbox() {
+  S.G = newSandbox()
+  S.screen = 'playing'
+  hideAllOverlays()
+  hideActionBar()
+  setEmojiText(elLevelName, `${BACKYARD.areaEmoji} ${BACKYARD.name}`)
+  setEmojiText(document.getElementById('speedBtn'), '⏩')
+  showPrepBanner()
+  refreshPalette()
+  resetAbilities()
+  resetMascot()
+  music.play(0) // a cheery tune for the garden
+}
+
+// The gentle off-ramp: wave goodbye, then drift back to the map — no game-over.
+function leaveSandbox() {
+  avatarReact('wave') // mascot waves goodbye 👋
+  music.stop()
+  hidePrepBanner()
+  setTimeout(() => showLevelSelect(), 650) // let the wave play before we leave
 }
 
 function computeStars() {
@@ -312,5 +339,5 @@ function showShop(back) {
 }
 
 export {
-  showStart, showLevelSelect, win, lose, showShop,
+  showStart, showLevelSelect, win, lose, showShop, startSandbox, leaveSandbox,
 }

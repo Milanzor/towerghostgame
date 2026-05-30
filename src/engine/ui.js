@@ -7,7 +7,7 @@ import { paletteEl, towerStrip, prepBanner, elCoins, elLives, elWave } from './d
 import { hideActionBar } from './towers.js'
 import { attachDrag, justDragged } from './input.js'
 import { startWave } from './enemies.js'
-import { showLevelSelect } from './screens.js'
+import { showLevelSelect, leaveSandbox } from './screens.js'
 
 
 // ===========================================================================
@@ -95,14 +95,26 @@ document.getElementById('menuBtn').addEventListener('click', () => {
 // ===========================================================================
 function showPrepBanner() {
   const isFirst = !S.G.started
-  prepBanner.innerHTML = isFirst
-    ? (S.G.level.isBoss
-        ? `👑 <b>BOSS room!</b> Build your team, then press <b>Start!</b>`
-        : `🛡️ Place your helpers, then press <b>Start!</b>`)
-    : `✅ Wave ${S.G.waveIndex} cleared! Build more, then press <b>Next Wave!</b>`
+  let msg
+  if (S.G.endless) {
+    // Backyard: cheery, pressure-free copy + a gentle "All done!" off-ramp.
+    msg = isFirst
+      ? `🏡 Welcome to the Backyard! Place helpers, then press <b>Start!</b>`
+      : `✅ Wave ${S.G.waveIndex} done! Build more, then press <b>Next Wave!</b>`
+    msg += ` <button class="prep-done" id="prepDoneBtn">🏡 All done!</button>`
+  } else {
+    msg = isFirst
+      ? (S.G.level.isBoss
+          ? `👑 <b>BOSS room!</b> Build your team, then press <b>Start!</b>`
+          : `🛡️ Place your helpers, then press <b>Start!</b>`)
+      : `✅ Wave ${S.G.waveIndex} cleared! Build more, then press <b>Next Wave!</b>`
+  }
+  prepBanner.innerHTML = msg
   prepBanner.classList.toggle('boss', !!S.G.level.isBoss && isFirst)
   twemojify(prepBanner)
   prepBanner.classList.remove('hidden')
+  const done = document.getElementById('prepDoneBtn')
+  if (done) done.addEventListener('click', (e) => { e.stopPropagation(); sfx.click(); leaveSandbox() })
 }
 function hidePrepBanner() {
   prepBanner.classList.add('hidden')
@@ -120,9 +132,16 @@ function syncHUD() {
     lastCoins = S.G.coins
     refreshPalette()
   }
-  elLives.textContent = S.G.lives
-  const shown = Math.min(S.G.waveIndex + 1, S.G.waveCount)
-  elWave.textContent = `${shown}/${S.G.waveCount}`
+  if (S.G.endless) {
+    // No-fail Backyard: a friendly ∞ instead of a scary "0 lives", and a plain
+    // wave number (no "x/y" total — the waves are infinite).
+    if (elLives.textContent !== '∞') elLives.textContent = '∞'
+    elWave.textContent = `${S.G.waveIndex + 1}`
+  } else {
+    elLives.textContent = S.G.lives
+    const shown = Math.min(S.G.waveIndex + 1, S.G.waveCount)
+    elWave.textContent = `${shown}/${S.G.waveCount}`
+  }
   if (goBtn) {
     let label
     if (S.G.phase === 'prep') {

@@ -13,8 +13,15 @@ import { avatarReact } from '../cosmetics.js'
 // ===========================================================================
 // Waves & spawning
 // ===========================================================================
+// Cap on-screen monsters so a long iPad sandbox session never bogs down.
+const MAX_ENEMIES = 90
+
 function startWave() {
-  const wave = S.G.level.waves[S.G.waveIndex]
+  // Endless rooms generate their wave procedurally; story rooms read the fixed
+  // list. waveGen never runs out, so the Start/Next-Wave flow loops forever.
+  const wave = S.G.level.waveGen
+    ? S.G.level.waveGen(S.G.waveIndex)
+    : S.G.level.waves[S.G.waveIndex]
   S.G.spawnQueue = []
   for (const group of wave) {
     for (let i = 0; i < group.count; i++) {
@@ -65,6 +72,9 @@ function updateSpawning(dt) {
   if (S.G.phase !== 'spawning') return
   S.G.spawnTimer += dt
   if (S.G.spawnQueue.length && S.G.spawnTimer >= S.G.nextGap) {
+    // Memory bound: if the field is already crowded, hold the spawn (don't drop
+    // it) so the queue still empties — just paced out — and we stay under cap.
+    if (S.G.enemies.length >= MAX_ENEMIES) return
     S.G.spawnTimer = 0
     const next = S.G.spawnQueue.shift()
     spawnEnemy(next.type)
@@ -82,7 +92,12 @@ function checkWaveCleared() {
   floatText(FIELD_W / 2, FIELD_H / 2, `Wave clear! +${bonus}`, '#ffd34d', 28)
   sfx.coin()
   S.G.waveIndex++
-  if (S.G.waveIndex >= S.G.waveCount) {
+  if (S.G.endless) {
+    // Endless sandbox: never "done", never win() — just queue the next
+    // procedural wave and wait for the kid's tap (press-to-advance).
+    S.G.phase = 'prep'
+    showPrepBanner()
+  } else if (S.G.waveIndex >= S.G.waveCount) {
     S.G.phase = 'done'
     win()
   } else {
@@ -150,17 +165,28 @@ function updateEnemies(dt) {
   }
   // Handle leaks
   let leaked = 0
+  const leakPts = []
   S.G.enemies = S.G.enemies.filter(e => {
-    if (e.leaked) { leaked++; return false }
+    if (e.leaked) { leaked++; leakPts.push({ x: e.x, y: e.y }); return false }
     return true
   })
   if (leaked > 0) {
-    S.G.lives -= leaked
-    S.G.shake = Math.min(14, S.G.shake + 8)
-    S.G.flash = 0.35
-    sfx.hurt()
-    avatarReact('hide') // mascot covers its eyes — oh no, one got by!
-    if (S.G.lives <= 0) { S.G.lives = 0; lose() }
+    if (S.G.endless) {
+      // No-fail Backyard: no lives lost, no game-over. The monster just floats
+      // away happily with a little giggle cue — pure delight, zero pressure.
+      for (const p of leakPts) {
+        popEffect(p.x, p.y, '#ffd34d')
+        floatText(p.x, p.y - 10, 'bye! 👋', '#ffd34d', 18)
+      }
+      avatarReact('wave') // mascot waves the friend goodbye
+    } else {
+      S.G.lives -= leaked
+      S.G.shake = Math.min(14, S.G.shake + 8)
+      S.G.flash = 0.35
+      sfx.hurt()
+      avatarReact('hide') // mascot covers its eyes — oh no, one got by!
+      if (S.G.lives <= 0) { S.G.lives = 0; lose() }
+    }
   }
 }
 

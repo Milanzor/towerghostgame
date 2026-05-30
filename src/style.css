@@ -239,6 +239,34 @@ canvas {
   background: rgba(60, 12, 50, 0.85);
 }
 .prep-banner.boss b { color: #ffd34d; }
+/* §5 — the Backyard off-ramp button lives inside the (otherwise non-clickable)
+   prep banner, so re-enable pointer events just for it. */
+.prep-done {
+  pointer-events: auto;
+  margin-left: 10px;
+  background: linear-gradient(#7be38c, var(--good));
+  border: 3px solid #1d7a3a;
+  border-radius: 999px;
+  color: #0d3a18;
+  font-weight: 900;
+  font-size: 0.9em;
+  padding: 4px 14px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #1d7a3a;
+}
+.prep-done:active { transform: translateY(2px); box-shadow: 0 1px 0 #1d7a3a; }
+
+/* §5 — big friendly Backyard entry on the room picker. */
+.backyard-btn {
+  display: block;
+  width: 100%;
+  margin: 6px 0 14px;
+  background: linear-gradient(#bdf08f, #86c46b);
+  border-color: #3f7a2a;
+  color: #1a4010;
+  box-shadow: 0 6px 0 #3f7a2a;
+}
+.backyard-btn:active { box-shadow: 0 3px 0 #3f7a2a; }
 @keyframes bannerBob {
   0%, 100% { transform: translateX(-50%) translateY(0); }
   50% { transform: translateX(-50%) translateY(-4px); }

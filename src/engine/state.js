@@ -5,6 +5,7 @@
 // Also home to save/progress persistence and the per-room game factory.
 // ---------------------------------------------------------------------------
 import { LEVELS } from '../content.js'
+import { BACKYARD } from '../backyard.js'
 
 export const S = {
   screen: 'start', // 'start' | 'select' | 'playing'
@@ -113,16 +114,21 @@ export function listProfiles() {
 // ===========================================================================
 // New game / per-room state factory
 // ===========================================================================
-export function newGame(levelIndex) {
-  const level = LEVELS[levelIndex]
+// Build the per-room state from a level OBJECT. Both the numbered levels and the
+// synthetic Backyard sandbox flow through here so they share all the same engine
+// fields. `opts.endless` flags the no-fail infinite sandbox.
+export function newGameFromLevel(level, levelIndex, opts = {}) {
+  const endless = !!opts.endless
   return {
     level,
     levelIndex,
+    endless,
     coins: level.startCoins,
-    lives: level.lives,
-    livesMax: level.lives,
+    lives: endless ? Infinity : level.lives,
+    livesMax: endless ? Infinity : level.lives,
     waveIndex: 0,
-    waveCount: level.waves.length,
+    // Endless rooms have no fixed wave list — waveCount is unbounded.
+    waveCount: endless ? Infinity : level.waves.length,
     phase: 'prep', // 'prep' | 'spawning' | 'cleanup' | 'done'
     started: false, // has the player pressed Start at least once?
     spawnQueue: [],
@@ -150,4 +156,17 @@ export function newGame(levelIndex) {
     aiming: null,         // id of the ability awaiting a swipe (Wave), or null
     aimSwipe: null,       // live { from, to } points while drawing the Wave
   }
+}
+
+// Numbered story rooms — read the level from the flat LEVELS array.
+export function newGame(levelIndex) {
+  return newGameFromLevel(LEVELS[levelIndex], levelIndex)
+}
+
+// The §5 endless Backyard sandbox — no lives, no lose, procedural waves. Built
+// from the synthetic BACKYARD def with a sentinel levelIndex (it's NOT in
+// LEVELS, so it never touches the save/progress). Seeds nothing extra: the first
+// wave is generated on demand by startWave() via level.waveGen(waveIndex).
+export function newSandbox() {
+  return newGameFromLevel(BACKYARD, -1, { endless: true })
 }

@@ -29,6 +29,9 @@ preloadEmoji([
   // themed room props + goal doors (see LEVELS decor/door in content.js)
   '🚪', '🏰', '🌀', '🕸️', '🖼️', '🪦', '🕯️', '🦇', '🧊', '💎', '🦴', '⛄',
   '⛓️', '🗝️', '🪨', '🌑', '🪐', '☄️', '🌟', '🛸',
+
+  // §5 Backyard sandbox — the home button/door + bright garden decor
+  '🏡', '🌻', '🌷', '🌼', '🦋', '🐝', '🌳',
 ])
 
 // ===========================================================================

@@ -1,0 +1,15 @@
+{
+  "name": "ghost-tower-defense",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A friendly, cartoonish ghost tower defense game for little kids.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}

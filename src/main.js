@@ -28,6 +28,8 @@ preloadEmoji([
   '🛍️', '🎩', '🧢', '🎀', '🎃', '🧙', '🙂', '🙈', '👏', '😴', '👋',
   // §6 grown-up corner: gear gate, vibe faces, the wind-down clock
   '⚙️', '😌', '😄', '⏰', '🗑️',
+  // §8 world-map journey: the "you are here" flag + diorama poke puffs
+  '🚩', '💨', '🌙',
 
   // themed room props + goal doors (see LEVELS decor/door in content.js)
   '🚪', '🏰', '🌀', '🕸️', '🖼️', '🪦', '🕯️', '🦇', '🧊', '💎', '🦴', '⛄',

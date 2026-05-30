@@ -63,6 +63,8 @@ export const sfx = {
     const notes = [659, 880, 1047]
     notes.forEach((n, i) => setTimeout(() => tone(n, 0.12, 'triangle', 0.18), i * 70))
   },
+  // §8 world map: a soft, gentle "poke" blip when tapping an area diorama.
+  poke: () => tone(540, 0.09, 'sine', 0.12, 880),
 }
 
 // ===========================================================================

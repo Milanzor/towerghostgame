@@ -48,9 +48,15 @@ function starString(n) {
 function avatarEmoji(p) { return (AVATARS[p.avatar] || AVATARS.girl).emoji }
 function totalStarsFor(p) { return Object.values(p.stars || {}).reduce((a, b) => a + b, 0) }
 
+// §8 — remember which stop the avatar token last sat on, so we can detect when
+// a win has unlocked a NEW stop and animate the token travelling to it (and only
+// then). null = no map shown yet this session.
+let lastShownUnlocked = null
+
 // "Who's playing?" picker — sits between Play and the level select.
 function showProfiles() {
   S.screen = 'profiles'
+  lastShownUnlocked = null // switching players must not trigger a travel tween
   hideActionBar()
   music.stop()
   const profiles = listProfiles()
@@ -98,13 +104,31 @@ function createProfileFlow() {
   showProfiles()
 }
 
+// §8 — the avatar token (face + equipped hat layered) that travels the trail.
+function tokenHTML(prof) {
+  const face = avatarEmoji(prof)
+  const hat = (HATS[prof.hat] || HATS.none).emoji
+  return `${hat ? `<span class="tok-hat">${hat}</span>` : ''}<span class="tok-face">${face}</span>`
+}
+
+// §8 — the world map reframed as a winding TRAIL the avatar walks. One serpentine
+// row per AREA (data-driven off AREAS/levelIndices — never hardcodes 25): a
+// pokeable diorama at the row head, then its rooms as `.lvl` stops connected by a
+// drawn trail line. The avatar token sits on the latest unlocked stop, marked by
+// a 🚩 flag; the NEXT playable stop bounces to pull the eye. Returning after a win
+// that unlocked a new stop slides the token forward, then puffs a little cheer.
 function showLevelSelect() {
   S.screen = 'select'
   hideActionBar()
   music.stop()
   const prof = currentProfile()
-  let sections = ''
-  AREAS.forEach((area) => {
+  // The stop the token rests on = latest unlocked (clamped into range).
+  const here = Math.min(prof.unlocked, LEVELS.length - 1)
+  // Detect a fresh advance vs a normal map open (animate only on advance).
+  const animateFrom = (lastShownUnlocked != null && here > lastShownUnlocked) ? lastShownUnlocked : null
+
+  let rows = ''
+  AREAS.forEach((area, ai) => {
     const areaLocked = area.levelIndices[0] > prof.unlocked
     let tiles = ''
     area.levelIndices.forEach((i, li) => {
@@ -112,32 +136,39 @@ function showLevelSelect() {
       const locked = i > prof.unlocked
       const stars = prof.stars[i] || 0
       const num = locked ? '🔒' : (lv.isBoss ? '👑' : li + 1)
+      // The single "next room to play" gets the attractor bounce.
+      const isNext = i === here
       tiles += `
-        <div class="lvl ${locked ? 'locked' : ''} ${lv.isBoss ? 'boss' : ''}" data-i="${i}">
+        <div class="lvl ${locked ? 'locked' : ''} ${lv.isBoss ? 'boss' : ''} ${isNext ? 'next' : ''}" data-i="${i}">
           <div class="num">${num}</div>
           <div class="lname">${locked ? '???' : lv.name}</div>
           <div class="ministars">${locked ? '' : starString(stars)}</div>
         </div>`
     })
-    sections += `
-      <div class="area ${areaLocked ? 'area-locked' : ''}">
-        <div class="area-head">${area.emoji} ${area.name}${areaLocked ? ' 🔒' : ''}</div>
-        <div class="levels">${tiles}</div>
+    // serpentine: even rows flow left→right, odd rows right→left.
+    rows += `
+      <div class="trail-row ${ai % 2 ? 'rtl' : ''} ${areaLocked ? 'area-locked' : ''}">
+        <button class="diorama" data-area="${ai}" title="${area.name}" aria-label="${area.name}">${area.emoji}</button>
+        <div class="trail-stops">${tiles}</div>
       </div>`
   })
   const totalStars = Object.values(prof.stars).reduce((a, b) => a + b, 0)
   ovSelect.innerHTML = `
-    <div class="card wide">
+    <div class="card wide map-card">
       <button class="avatar-chip" id="avatarChip" title="Switch player">
         ${avatarEmoji(prof)} <span>${prof.name}</span>
       </button>
       <button class="shop-chip" id="shopChip" title="Shop">🛍️ <span>✨ ${prof.points}</span></button>
       ${gearButtonHTML()}
-      <h1>Pick a Room</h1>
+      <h1>Your Journey</h1>
       <p>⭐ Stars collected: <b>${totalStars} / ${LEVELS.length * 3}</b></p>
       <button class="big-btn backyard-btn" id="backyardBtn">🏡 Backyard — free play, no rush!</button>
-      ${sections}
-      <div class="hint">Beat a room to unlock the next! Each world ends with a 👑 BOSS.</div>
+      <div class="trail" id="trail">
+        ${rows}
+        <div class="map-token" id="mapToken">${tokenHTML(prof)}</div>
+        <div class="map-flag" id="mapFlag">🚩</div>
+      </div>
+      <div class="hint">Follow the path! Each world ends with a 👑 BOSS.</div>
     </div>`
   twemojify(ovSelect)
   hideAllOverlays()
@@ -151,6 +182,73 @@ function showLevelSelect() {
     if (i > prof.unlocked) continue
     el.addEventListener('click', () => { sfx.click(); startLevel(i) })
   }
+  // Pokeable area dioramas — stakes-free puff/wink, never selects a level.
+  for (const el of ovSelect.querySelectorAll('.diorama')) {
+    el.addEventListener('click', (e) => { e.stopPropagation(); pokeDiorama(el, +el.dataset.area) })
+  }
+  // Place the token + flag once layout settles, then animate the advance.
+  requestAnimationFrame(() => placeToken(here, animateFrom))
+  lastShownUnlocked = here
+}
+
+// Position the avatar token (and its 🚩 flag) over a stop. If `from` is given,
+// start the token on that stop and slide it to `to`, cheering on arrival.
+function placeToken(to, from) {
+  const trail = document.getElementById('trail')
+  const token = document.getElementById('mapToken')
+  const flag = document.getElementById('mapFlag')
+  if (!trail || !token) return
+  const stopOf = (i) => trail.querySelector(`.lvl[data-i="${i}"]`)
+  const centreOf = (el) => {
+    const tr = trail.getBoundingClientRect()
+    const r = el.getBoundingClientRect()
+    return { x: r.left - tr.left + r.width / 2, y: r.top - tr.top + r.height / 2 }
+  }
+  const target = stopOf(to)
+  if (!target) return
+  const place = (el, p, anchorTop) => {
+    el.style.left = p.x + 'px'
+    el.style.top = (anchorTop ? p.y - el.offsetHeight * 0.55 : p.y) + 'px'
+  }
+  const arrive = () => {
+    const p = centreOf(stopOf(to))
+    place(token, p, false)
+    if (flag) place(flag, { x: p.x + 22, y: p.y }, true)
+  }
+  if (from != null && stopOf(from)) {
+    // start at the old stop, then transition to the new one — a short slide.
+    const start = centreOf(stopOf(from))
+    place(token, start, false)
+    if (flag) flag.style.opacity = '0'
+    token.classList.add('travelling')
+    // next frame: move + cheer
+    requestAnimationFrame(() => {
+      const p = centreOf(stopOf(to))
+      place(token, p, false)
+      token.classList.add('cheer')
+    })
+    setTimeout(() => {
+      token.classList.remove('travelling', 'cheer')
+      if (flag) { flag.style.opacity = ''; arrive() }
+      sfx.win()
+    }, 1100)
+  } else {
+    arrive()
+  }
+}
+
+// §8 — diorama tap: a soft puff/twinkle floats up off the area emoji + a blip.
+// Per-area flavour: volcano puffs 💨, void twinkles 🌙, mansion door creaks 🚪…
+const DIORAMA_PUFF = ['💨', '🌙', '💨', '💨', '⭐']
+function pokeDiorama(el, ai) {
+  sfx.poke()
+  el.classList.remove('poked'); void el.offsetWidth; el.classList.add('poked')
+  const puff = document.createElement('span')
+  puff.className = 'diorama-puff'
+  puff.textContent = DIORAMA_PUFF[ai] || '✨'
+  el.appendChild(puff)
+  twemojify(puff)
+  setTimeout(() => puff.remove(), 800)
 }
 
 function startLevel(i) {

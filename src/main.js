@@ -215,6 +215,14 @@ function onGo() {
   if (G && G.phase === 'prep') startWave()
 }
 
+// Space (or Enter) is a shortcut for the Start / Next Wave button.
+document.addEventListener('keydown', (e) => {
+  if (e.code !== 'Space' && e.key !== 'Enter') return
+  if (screen !== 'playing' || !G || G.phase !== 'prep') return
+  e.preventDefault()
+  onGo()
+})
+
 // ===========================================================================
 // Drag & drop placement (palette → field)
 // ===========================================================================

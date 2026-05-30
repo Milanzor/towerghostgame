@@ -58,6 +58,11 @@ export const sfx = {
   // Magic Buttons (§2): a bright sparkle chime on collect, a soft whoosh on cast.
   sparkle: () => { tone(1320, 0.07, 'sine', 0.12); setTimeout(() => tone(1760, 0.1, 'sine', 0.12), 55) },
   cast: () => tone(420, 0.22, 'sine', 0.16, 1100),
+  // Shop (§1): a cheerful little rising arpeggio on buy/equip.
+  buy: () => {
+    const notes = [659, 880, 1047]
+    notes.forEach((n, i) => setTimeout(() => tone(n, 0.12, 'triangle', 0.18), i * 70))
+  },
 }
 
 // ===========================================================================

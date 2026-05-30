@@ -15,6 +15,7 @@ import { floatText, ringEffect } from './effects.js'
 import { setEmojiText } from '../emoji.js'
 import { stage } from './dom.js'
 import { sweepAllBack, freezeAll, clearNonBoss, pushNearLine } from './enemies.js'
+import { avatarReact } from '../cosmetics.js'
 
 // Each ability has a `cooldown` (seconds, the spam floor) and starts with 1
 // charge so a kid can cast right away. `once` spells are limited per level.
@@ -156,6 +157,7 @@ function doEffect(a) {
     clearNonBoss()
     sfx.zap()
     G.flash = 0.4
+    avatarReact('clap') // mascot claps for the big catch
     floatText(FIELD_W / 2, FIELD_H / 2, '🌟 ZAP!', '#ffe98a', 30)
   }
   refreshAbilityTray()

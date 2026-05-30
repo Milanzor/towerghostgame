@@ -397,6 +397,110 @@ canvas {
 .avatar-chip img.emoji { width: 1.3em; height: 1.3em; vertical-align: -0.25em; }
 .card.wide { position: relative; }
 
+/* shop chip — sits opposite the avatar chip on the level select */
+.shop-chip {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: linear-gradient(#c79bff, #9a6bff);
+  border: 4px solid #5e3aa8;
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 900;
+  font-size: clamp(14px, 3vw, 18px);
+  padding: 6px 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #5e3aa8;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.shop-chip:active { transform: translateY(2px); box-shadow: 0 2px 0 #5e3aa8; }
+.shop-chip img.emoji { width: 1.2em; height: 1.2em; vertical-align: -0.2em; }
+
+/* win-screen "treats" line */
+.treats { font-weight: 900; color: #ffe98a; font-size: clamp(18px, 4vw, 26px) !important; }
+
+/* ===== Hat Shop ===== */
+.shop-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  margin: 10px 0 18px;
+  flex-wrap: wrap;
+}
+.shop-preview {
+  background: rgba(0, 0, 0, 0.18);
+  border: 4px solid rgba(0, 0, 0, 0.3);
+  border-radius: 22px;
+  padding: 14px 22px;
+}
+.sp-avatar { position: relative; width: 96px; height: 96px; margin: 0 auto; }
+.sp-face { font-size: 80px; line-height: 96px; }
+.sp-face img.emoji { width: 80px; height: 80px; }
+.sp-hat {
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  transform: translateX(-50%);
+}
+.sp-hat img.emoji { width: 52px; height: 52px; }
+.sp-name { font-weight: 900; font-size: 20px; margin-top: 6px; text-shadow: 0 2px 0 #1a0f30; }
+.shop-wallet {
+  background: linear-gradient(#ffe071, var(--gold));
+  color: #5a3a00;
+  border: 4px solid #b8860b;
+  border-radius: 18px;
+  padding: 10px 22px;
+  font-size: clamp(28px, 7vw, 42px);
+  font-weight: 900;
+  box-shadow: 0 5px 0 #b8860b;
+}
+.shop-wallet img.emoji { width: 1em; height: 1em; vertical-align: -0.12em; }
+.shop-wallet .sw-label { font-size: 13px; font-weight: 800; opacity: .8; }
+
+.hat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 8px 0 18px;
+}
+@media (max-width: 560px) {
+  .hat-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.hat-tile {
+  background: linear-gradient(#5a4a82, #463670);
+  border: 4px solid #2a1a4a;
+  border-radius: 18px;
+  padding: 12px 8px 10px;
+  box-shadow: 0 5px 0 #1a0f30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.hat-tile.on { border-color: var(--gold); box-shadow: 0 5px 0 #1a0f30, 0 0 14px rgba(255, 211, 77, 0.4); }
+.hat-emoji { font-size: 44px; line-height: 1; }
+.hat-emoji img.emoji { width: 44px; height: 44px; }
+.hat-name { font-size: 13px; font-weight: 800; min-height: 1.2em; }
+.hat-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-weight: 900;
+  font-size: 15px;
+  cursor: pointer;
+}
+.hat-btn.buy { background: linear-gradient(#ffe071, var(--gold)); color: #5a3a00; box-shadow: 0 4px 0 #b8860b; }
+.hat-btn.buy:active { transform: translateY(2px); box-shadow: 0 2px 0 #b8860b; }
+.hat-btn.equip { background: linear-gradient(#9bd8ff, #6bb6ff); color: #0d2a4a; box-shadow: 0 4px 0 #2a6aa8; }
+.hat-btn.equip:active { transform: translateY(2px); box-shadow: 0 2px 0 #2a6aa8; }
+.hat-btn.cant { opacity: .45; filter: grayscale(.5); cursor: default; }
+.hat-btn.cant:active { transform: none; }
+.hat-state.equipped { font-weight: 900; color: #ffe98a; font-size: 14px; padding: 7px 0; }
+.hat-btn img.emoji { width: 1em; height: 1em; vertical-align: -0.12em; }
+
 /* floating action bar for a selected (placed) tower */
 .action-bar {
   position: absolute;

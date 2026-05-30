@@ -10,6 +10,7 @@ import { updateTowers, updateProjectiles, positionActionBar } from './engine/tow
 import { render } from './engine/render.js'
 import { buildPalette, syncHUD } from './engine/ui.js'
 import { updateAbilities, updatePickups, buildAbilityTray, refreshAbilityTray } from './engine/abilities.js'
+import { updateMascot } from './cosmetics.js'
 import { showStart } from './engine/screens.js'
 import './engine/input.js' // registers pointer/keyboard/touch listeners
 
@@ -22,6 +23,8 @@ preloadEmoji([
   '🔊', '🔇', '⏩', '🏠', '✨', '👻', '🎉', '🗑️', '⬆️', '🐷',
   '👦', '👧', '➕', // kid profile avatars + add-player card
   '🧹', '💤', '🍬', // magic-button abilities (🌟 ✨ 🌊 already above)
+  // §1 avatars/shop: hats, the shop bag + the mascot reaction faces
+  '🛍️', '🎩', '🧢', '🎀', '🎃', '🧙', '🙂', '🙈', '👏', '😴', '👋',
 
   // themed room props + goal doors (see LEVELS decor/door in content.js)
   '🚪', '🏰', '🌀', '🕸️', '🖼️', '🪦', '🕯️', '🦇', '🧊', '💎', '🦴', '⛄',
@@ -56,6 +59,7 @@ function frame(now) {
       updatePickups(sdt)    // bob + fade floating ✨ sparkles
     }
     if (!G.paused) updateParticles(dt * G.speed)
+    updateMascot(dt) // mascot reactions tick even while paused/done (real time)
 
     render()
     syncHUD()

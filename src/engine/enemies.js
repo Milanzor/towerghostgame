@@ -7,6 +7,7 @@ import { floatText, popEffect, ringEffect, emberAt } from './effects.js'
 import { win, lose } from './screens.js'
 import { showPrepBanner, hidePrepBanner } from './ui.js'
 import { maybeDropSparkle } from './abilities.js'
+import { avatarReact } from '../cosmetics.js'
 
 
 // ===========================================================================
@@ -158,6 +159,7 @@ function updateEnemies(dt) {
     S.G.shake = Math.min(14, S.G.shake + 8)
     S.G.flash = 0.35
     sfx.hurt()
+    avatarReact('hide') // mascot covers its eyes — oh no, one got by!
     if (S.G.lives <= 0) { S.G.lives = 0; lose() }
   }
 }

@@ -3,10 +3,11 @@ import { S, writeSave, newGame, currentProfile, setActiveProfile, addProfile, li
 import { LEVELS, AREAS } from '../content.js'
 import { sfx, music } from '../audio.js'
 import { twemojify, setEmojiText } from '../emoji.js'
-import { ovStart, ovProfiles, ovSelect, ovResult, hideAllOverlays, elLevelName } from './dom.js'
+import { ovStart, ovProfiles, ovSelect, ovResult, ovShop, hideAllOverlays, elLevelName } from './dom.js'
 import { hideActionBar } from './towers.js'
 import { refreshPalette, showPrepBanner, hidePrepBanner } from './ui.js'
 import { resetAbilities } from './abilities.js'
+import { AVATARS, HATS, HAT_ORDER, resetMascot, avatarReact } from '../cosmetics.js'
 
 
 // ===========================================================================
@@ -40,7 +41,7 @@ function starString(n) {
   return s
 }
 
-function avatarEmoji(p) { return p.avatar === 'boy' ? '👦' : '👧' }
+function avatarEmoji(p) { return (AVATARS[p.avatar] || AVATARS.girl).emoji }
 function totalStarsFor(p) { return Object.values(p.stars || {}).reduce((a, b) => a + b, 0) }
 
 // "Who's playing?" picker — sits between Play and the level select.
@@ -126,6 +127,7 @@ function showLevelSelect() {
       <button class="avatar-chip" id="avatarChip" title="Switch player">
         ${avatarEmoji(prof)} <span>${prof.name}</span>
       </button>
+      <button class="shop-chip" id="shopChip" title="Shop">🛍️ <span>✨ ${prof.points}</span></button>
       <h1>Pick a Room</h1>
       <p>⭐ Stars collected: <b>${totalStars} / ${LEVELS.length * 3}</b></p>
       ${sections}
@@ -135,6 +137,7 @@ function showLevelSelect() {
   hideAllOverlays()
   ovSelect.classList.remove('hidden')
   document.getElementById('avatarChip').addEventListener('click', () => { sfx.click(); showProfiles() })
+  document.getElementById('shopChip').addEventListener('click', () => { sfx.click(); showShop(showLevelSelect) })
   for (const el of ovSelect.querySelectorAll('.lvl')) {
     const i = +el.dataset.i
     if (i > prof.unlocked) continue
@@ -152,6 +155,7 @@ function startLevel(i) {
   showPrepBanner()
   refreshPalette()
   resetAbilities() // rebuild the magic-button tray, clear any armed aim
+  resetMascot() // avatar back to idle for the new room
   music.play(i) // each room has its own tune
 }
 
@@ -169,7 +173,12 @@ function win() {
   if (stars > (prof.stars[i] || 0)) prof.stars[i] = stars
   if (i + 1 > prof.unlocked && i + 1 < LEVELS.length) prof.unlocked = i + 1
   if (i + 1 >= LEVELS.length) prof.unlocked = Math.max(prof.unlocked, LEVELS.length - 1)
+  // Persistent Points wallet (§1, separate from stars): a clear bonus + the
+  // stars earned + a little for leftover coins. Hats are bought with these.
+  const earned = 3 + stars + Math.floor(S.G.coins / 25)
+  prof.points += earned
   writeSave()
+  avatarReact('cheer') // mascot cheers + jumps on the win
   music.stop()
   sfx.win()
   hidePrepBanner()
@@ -183,10 +192,12 @@ function win() {
         <span class="${stars >= 3 ? 'star-on' : 'star-off'}">⭐</span>
       </div>
       <h2>${S.G.level.name} cleared!</h2>
+      <p class="treats">✨ +${earned} treats!</p>
       <p>${stars === 3 ? 'Perfect! Not a single monster got by! 🌟' : 'Great catching! Can you get all 3 stars? 💪'}</p>
       <div>
         ${!isLast ? '<button class="big-btn green" id="nextBtn">▶ Next Room</button>' : '<p>🏆 You finished every room! You are a Ghost Master! 🏆</p>'}
         <button class="big-btn" id="replayBtn">🔁 Play Again</button>
+        <button class="big-btn" id="shopBtn">🛍️ Shop</button>
         <button class="big-btn" id="mapBtn">🗺️ Rooms</button>
       </div>
     </div>`
@@ -195,6 +206,12 @@ function win() {
   const next = document.getElementById('nextBtn')
   if (next) next.addEventListener('click', () => { sfx.click(); startLevel(i + 1) })
   document.getElementById('replayBtn').addEventListener('click', () => { sfx.click(); startLevel(i) })
+  // Re-show the (already-built) result overlay on Done — never re-run win(),
+  // which would re-award points.
+  document.getElementById('shopBtn').addEventListener('click', () => {
+    sfx.click()
+    showShop(() => { hideAllOverlays(); ovResult.classList.remove('hidden') })
+  })
   document.getElementById('mapBtn').addEventListener('click', () => { sfx.click(); showLevelSelect() })
 }
 
@@ -220,6 +237,80 @@ function lose() {
   document.getElementById('mapBtn2').addEventListener('click', () => { sfx.click(); showLevelSelect() })
 }
 
+// ===========================================================================
+// Shop (§1) — spend persistent Points on cosmetic hats for the chosen avatar.
+// `back` is called when the kid taps Done (returns to wherever they came from).
+// ===========================================================================
+function showShop(back) {
+  S.screen = 'shop'
+  hideActionBar()
+  const render = () => {
+    const prof = currentProfile()
+    const av = AVATARS[prof.avatar] || AVATARS.girl
+    const hat = HATS[prof.hat] || HATS.none
+    const tiles = HAT_ORDER.map((id) => {
+      const h = HATS[id]
+      const owned = prof.owned.includes(id)
+      const equipped = prof.hat === id
+      const afford = prof.points >= h.cost
+      let action
+      if (equipped) action = `<div class="hat-state equipped">Equipped ✓</div>`
+      else if (owned) action = `<button class="hat-btn equip" data-equip="${id}">Equip</button>`
+      else action = `<button class="hat-btn buy ${afford ? '' : 'cant'}" data-buy="${id}">Buy ✨${h.cost}</button>`
+      return `
+        <div class="hat-tile ${equipped ? 'on' : ''}">
+          <div class="hat-emoji">${h.emoji || '🚫'}</div>
+          <div class="hat-name">${h.name}</div>
+          ${action}
+        </div>`
+    }).join('')
+    ovShop.innerHTML = `
+      <div class="card wide">
+        <h1>🛍️ Hat Shop</h1>
+        <div class="shop-top">
+          <div class="shop-preview">
+            <div class="sp-avatar">
+              <span class="sp-face">${av.emoji}</span>
+              ${hat.emoji ? `<span class="sp-hat">${hat.emoji}</span>` : ''}
+            </div>
+            <div class="sp-name">${av.name}</div>
+          </div>
+          <div class="shop-wallet">✨ <b>${prof.points}</b><div class="sw-label">treats</div></div>
+        </div>
+        <div class="hat-grid">${tiles}</div>
+        <button class="big-btn green" id="shopDone">✅ Done</button>
+      </div>`
+    twemojify(ovShop)
+    for (const el of ovShop.querySelectorAll('[data-buy]')) {
+      el.addEventListener('click', () => {
+        const id = el.dataset.buy
+        const h = HATS[id]
+        const p = currentProfile()
+        if (p.points < h.cost || p.owned.includes(id)) return
+        p.points -= h.cost
+        p.owned.push(id)
+        p.hat = id // auto-equip the freshly bought hat — instant delight
+        writeSave()
+        sfx.buy()
+        render()
+      })
+    }
+    for (const el of ovShop.querySelectorAll('[data-equip]')) {
+      el.addEventListener('click', () => {
+        const p = currentProfile()
+        p.hat = el.dataset.equip
+        writeSave()
+        sfx.buy()
+        render()
+      })
+    }
+    document.getElementById('shopDone').addEventListener('click', () => { sfx.click(); back() })
+  }
+  render()
+  hideAllOverlays()
+  ovShop.classList.remove('hidden')
+}
+
 export {
-  showStart, showLevelSelect, win, lose,
+  showStart, showLevelSelect, win, lose, showShop,
 }

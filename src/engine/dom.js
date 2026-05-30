@@ -81,10 +81,12 @@ export const ovStart = makeOverlay('ovStart')
 export const ovProfiles = makeOverlay('ovProfiles')
 export const ovSelect = makeOverlay('ovSelect')
 export const ovResult = makeOverlay('ovResult')
+export const ovShop = makeOverlay('ovShop')
 
 export function hideAllOverlays() {
   ovStart.classList.add('hidden')
   ovProfiles.classList.add('hidden')
   ovSelect.classList.add('hidden')
   ovResult.classList.add('hidden')
+  ovShop.classList.add('hidden')
 }

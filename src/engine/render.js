@@ -6,6 +6,8 @@ import { drawEmoji } from '../emoji.js'
 import { clamp, lighten, mulberry32 } from './util.js'
 import { towerStat, cellBuildable } from './towers.js'
 import { drawParticles } from './effects.js'
+import { currentProfile } from './state.js'
+import { drawAvatar } from '../cosmetics.js'
 
 
 function render() {
@@ -28,6 +30,7 @@ function render() {
   drawProjectiles()
   drawEnemies()
   drawParticles()
+  drawMascot()
   drawPickups()
   drawAimGuide()
   drawPlacementPreview()
@@ -171,6 +174,23 @@ function drawDoor(x, y) {
   ctx.globalAlpha = 1
   drawEmoji(ctx, S.G.level.door || '🚪', 0, 0, 40)
   ctx.restore()
+}
+
+// The chosen avatar (§1) stands guard beside the mansion door, reacting to the
+// game. Tucked just off the goal so it never hides the door or the path.
+function drawMascot() {
+  const wp = S.G.level.waypoints
+  const end = clampPoint(wp[wp.length - 1])
+  // Stand to the side of the door that has more open room, and lift it above so
+  // it never sits on the path or hides behind the right-edge ability tray.
+  const side = end.x > FIELD_W / 2 ? -1 : 1
+  let mx = end.x + side * 50
+  let my = end.y - 48
+  // keep clear of the right-edge ability tray (~64px wide) and the screen edges
+  mx = clamp(mx, 36, FIELD_W - 92)
+  my = clamp(my, 40, FIELD_H - 40)
+  const prof = currentProfile()
+  drawAvatar(ctx, { avatar: prof.avatar, hat: prof.hat }, mx, my, 46, S.G.time, { prep: S.G.phase === 'prep' })
 }
 
 function roundRect(x, y, w, h, r) {

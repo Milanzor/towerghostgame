@@ -14,6 +14,9 @@ preloadEmoji([
   ...Object.values(ENEMIES).map(e => e.emoji),
   '⭐', '👑', '❄️', '💥', '🏚️', '🛡️', '🔥', '🫧', '🪙', '💜', '🌊',
   '🔊', '🔇', '⏩', '🏠', '✨', '👻', '🎉', '🗑️', '⬆️', '🐷',
+  // themed room props + goal doors (see LEVELS decor/door in content.js)
+  '🚪', '🏰', '🌀', '🕸️', '🖼️', '🪦', '🕯️', '🦇', '🧊', '💎', '🦴', '⛄',
+  '⛓️', '🗝️', '🪨', '🌑', '🪐', '☄️', '🌟', '🛸',
 ])
 
 // ===========================================================================
@@ -148,6 +151,7 @@ function newGame(levelIndex) {
     selectedTower: null,
     hoverCell: null,
     speed: 1,
+    paused: false,
     time: 0,
     shake: 0,
     flash: 0,
@@ -227,6 +231,12 @@ document.addEventListener('keydown', (e) => {
   } else if (e.key === 'f' || e.key === 'F') {
     e.preventDefault()
     document.getElementById('speedBtn').click()
+  // P → pause / resume (freezes the action but keeps the field on screen).
+  } else if (e.key === 'p' || e.key === 'P') {
+    if (G.phase === 'done') return
+    e.preventDefault()
+    G.paused = !G.paused
+    sfx.click()
   }
 })
 
@@ -1229,6 +1239,7 @@ function render() {
   ctx.fillStyle = lv.bg
   ctx.fillRect(-20, -20, FIELD_W + 40, FIELD_H + 40)
 
+  drawDecor(lv)
   drawBuildableDots()
   drawPath()
   drawTowers()
@@ -1250,7 +1261,70 @@ function render() {
   ctx.fillStyle = vg
   ctx.fillRect(-20, -20, FIELD_W + 40, FIELD_H + 40)
 
+  // paused overlay
+  if (G.paused) {
+    ctx.fillStyle = 'rgba(0,0,0,0.45)'
+    ctx.fillRect(-20, -20, FIELD_W + 40, FIELD_H + 40)
+    drawEmoji(ctx, '⏸️', FIELD_W / 2, FIELD_H / 2 - 26, 56)
+    ctx.fillStyle = '#fff'
+    ctx.font = 'bold 30px system-ui, sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('Paused', FIELD_W / 2, FIELD_H / 2 + 28)
+  }
+
   ctx.restore()
+}
+
+// Tiny seeded RNG so a room's scattered props are placed once and stay put
+// (instead of flickering to new spots every frame).
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+// Sprinkle each room with a handful of faint, area-themed props (cobwebs in the
+// mansion, ice crystals in the caverns, lava rocks in the volcano…). Purely
+// decorative — placed on non-path tiles and drawn behind everything, so they
+// never block building. Computed once per level and cached on the level.
+function levelDecor(lv) {
+  if (lv._decor) return lv._decor
+  const props = []
+  const list = lv.decor || []
+  if (list.length) {
+    const rand = mulberry32(lv.areaIndex * 101 + lv.waypoints.length * 17 + lv.name.length * 7)
+    const used = new Set()
+    let tries = 0
+    while (props.length < 16 && tries < 200) {
+      tries++
+      const c = Math.floor(rand() * COLS)
+      const r = Math.floor(rand() * ROWS)
+      const key = `${c},${r}`
+      if (lv.pathTiles.has(key) || used.has(key)) continue
+      used.add(key)
+      props.push({
+        emoji: list[Math.floor(rand() * list.length)],
+        x: c * TILE + TILE / 2 + (rand() - 0.5) * 18,
+        y: r * TILE + TILE / 2 + (rand() - 0.5) * 18,
+        size: 22 + Math.floor(rand() * 16),
+        alpha: 0.16 + rand() * 0.16,
+      })
+    }
+  }
+  lv._decor = props
+  return props
+}
+
+function drawDecor(lv) {
+  for (const p of levelDecor(lv)) {
+    ctx.globalAlpha = p.alpha
+    drawEmoji(ctx, p.emoji, p.x, p.y, p.size)
+  }
+  ctx.globalAlpha = 1
 }
 
 function drawBuildableDots() {
@@ -1305,28 +1379,28 @@ function clampPoint(p) {
 
 function drawPortal(x, y) {
   const t = G.time
+  ctx.fillStyle = G.level.accent || '#9a6bff'
   for (let i = 3; i >= 1; i--) {
+    ctx.globalAlpha = 0.12 * i
     ctx.beginPath()
-    ctx.fillStyle = `rgba(150,90,255,${0.12 * i})`
     ctx.arc(x, y, 10 + i * 6 + Math.sin(t * 3 + i) * 2, 0, Math.PI * 2)
     ctx.fill()
   }
+  ctx.globalAlpha = 1
 }
 
+// The "goal" the monsters race toward — themed per area (a creaky door in the
+// mansion, a frozen gate in the caverns, a swirling portal in the void…).
 function drawDoor(x, y) {
   ctx.save()
   ctx.translate(x, y)
-  // glow
-  ctx.fillStyle = 'rgba(255,220,120,0.25)'
-  ctx.beginPath(); ctx.arc(0, 0, 34, 0, Math.PI * 2); ctx.fill()
-  // door
-  ctx.fillStyle = '#5a3a1a'
-  roundRect(-20, -30, 40, 60, 8); ctx.fill()
-  ctx.fillStyle = '#7a5230'
-  roundRect(-15, -24, 30, 48, 6); ctx.fill()
-  ctx.fillStyle = '#ffd34d'
-  ctx.beginPath(); ctx.arc(8, 4, 3, 0, Math.PI * 2); ctx.fill()
-  drawEmoji(ctx, '🏚️', 0, -46, 22)
+  const t = G.time
+  // pulsing goal glow in the area accent colour
+  ctx.globalAlpha = 0.22 + Math.sin(t * 2) * 0.05
+  ctx.fillStyle = G.level.accent || '#ffd34d'
+  ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2); ctx.fill()
+  ctx.globalAlpha = 1
+  drawEmoji(ctx, G.level.door || '🚪', 0, 0, 40)
   ctx.restore()
 }
 
@@ -1641,7 +1715,7 @@ function frame(now) {
     if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 30)
     if (G.flash > 0) G.flash = Math.max(0, G.flash - dt * 1.5)
 
-    if (G.phase !== 'done') {
+    if (G.phase !== 'done' && !G.paused) {
       const sdt = dt * G.speed
       // NOTE: prep waits for the player to press Start — no auto-countdown.
       updateSpawning(sdt)
@@ -1651,7 +1725,7 @@ function frame(now) {
       removeDead()
       checkWaveCleared()
     }
-    updateParticles(dt * G.speed)
+    if (!G.paused) updateParticles(dt * G.speed)
 
     render()
     syncHUD()

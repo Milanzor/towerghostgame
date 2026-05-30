@@ -1,8 +1,11 @@
 // ===========================================================================
 // Monsters — cute, never scary. hp/reward get scaled per level.
 // speed is tiles per second.
-// `shape: 'ghost'` draws the classic friendly ghost. Anything with an
-//   `emoji` is drawn as a round little critter wearing that emoji face.
+// Every monster is hand-drawn in code (see engine/critters.js) — one bespoke
+//   little body per `name`, tinted from `color`. `shape: 'ghost'` picks the
+//   classic friendly-ghost drawer; otherwise the creature's own drawer is looked
+//   up by its key. The `emoji` field is now just a handy label for the palette /
+//   docs, not what gets rendered on the field.
 // Special powers (all optional):
 //   armor      – soaks up some of every hit (min 1 damage still lands)
 //   shield     – a bubble that eats the first N hits completely

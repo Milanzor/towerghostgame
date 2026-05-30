@@ -64,7 +64,12 @@ mansion door. Nothing scary — it's all bright, bouncy and silly. 💜
   stat tables — `towerStat()` in `engine/towers.js` grows the base stats via
   `LEVEL_GROWTH`, so a new helper just needs its base stats.
 - Enemy powers (optional fields on an enemy def): `armor`, `shield`, `regen`,
-  `split: { type, count }`. Enemies render as classic ghosts (`shape: 'ghost'`) or
-  as emoji critters (any def with an `emoji`).
+  `split: { type, count }`. Every monster is hand-drawn in code
+  (`engine/critters.js`) — one bespoke body per enemy, dispatched by key, with
+  `shape: 'ghost'` selecting the classic-ghost drawer. The `emoji` field is just
+  a label now, not what's rendered.
+- Helpers also unlock a **new power at level 3 and level 5** (forked bolts,
+  shrapnel, spreading fire/goo, extra grabs, cluster booms, knockback…) on top of
+  the smooth stat growth — see the `levelTier` handling in `engine/towers.js`.
 - Waves do NOT auto-start: the player presses **Start / Next Wave** when ready.
 - Keep all content friendly and cute for young kids — no scary or violent wording.

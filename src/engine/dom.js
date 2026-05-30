@@ -12,11 +12,11 @@ app.innerHTML = `
   <div class="game">
     <div class="hud">
       <span class="chip level-name" id="levelName">Ghost Catchers</span>
+      <button class="btn-mini update-btn" id="updateBtn" title="New version! Tap to update" hidden>✨</button>
       <button class="btn-mini gear-mini" id="settingsBtn" title="Grown-ups"><span class="hold-ring-fill"></span><span class="gear-ico">⚙️</span></button>
       <span class="chip coins">🪙 <span id="coins">0</span></span>
       <span class="chip lives">💜 <span id="lives">0</span></span>
       <span class="chip wave">🌊 <span id="wave">0/0</span></span>
-      <button class="btn-mini update-btn" id="updateBtn" title="New version! Tap to update" hidden>✨</button>
       <button class="btn-mini" id="speedBtn" title="Speed">⏩</button>
       <button class="btn-mini" id="muteBtn" title="Sound">🔊</button>
       <button class="btn-mini" id="menuBtn" title="Menu">🏠</button>

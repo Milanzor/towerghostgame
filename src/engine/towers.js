@@ -208,22 +208,22 @@ function updateTowers(dt) {
     if (kind === 'beam') {
       fireFx(t, target)
       damageEnemy(target, dmg)
-      addBeam(t.cx, t.cy, target.x, target.y, t.def.color, 0.12, { width: 6 })
-      burst(target.x, target.y, t.def.color, { n: 5, speed: 90, life: 0.25, glow: true })
+      // a glowing spark pellet that zips to the monster (no laser line)
+      spawnBolt(t, target.x, target.y, 'spark', t.def.color)
       // Lvl power: the zap forks to extra monsters (one more per tier).
       if (tier > 0) {
         for (const e of extraTargets(t, tier, target)) {
           damageEnemy(e, dmg * 0.6)
-          addBeam(t.cx, t.cy, e.x, e.y, lighten(t.def.color, 15), 0.12, { width: 4 })
-          burst(e.x, e.y, t.def.color, { n: 3, speed: 70, life: 0.2 })
+          spawnBolt(t, e.x, e.y, 'spark', lighten(t.def.color, 15))
         }
       }
       sfx.shoot()
     } else if (kind === 'snipe') {
       fireFx(t, target)
       damageEnemy(target, dmg)
-      // a thin, fast, far sniper bolt with a bright core + a hard impact crack
-      addBeam(t.cx, t.cy, target.x, target.y, t.def.color, 0.1, { width: 3 })
+      // a thin, fast sniper tracer + a crosshair flash + a hard impact crack
+      addBeam(t.cx, t.cy, target.x, target.y, t.def.color, 0.14, { width: 3 })
+      ringEffect(target.x, target.y, target.def.radius + 10, '#fff', { width: 2, life: 0.22 })
       burst(target.x, target.y, '#fff', { n: 10, speed: 150, life: 0.3, glow: true })
       S.G.shake = Math.min(10, S.G.shake + 3)
       // Lvl power: the shot shatters into shrapnel that nicks nearby monsters.
@@ -252,9 +252,8 @@ function updateTowers(dt) {
       fireFx(t, target)
       damageEnemy(target, dmg)
       applyBurn(target, towerStat(t, 'burnDps'), towerStat(t, 'burnDur'))
-      addBeam(t.cx, t.cy, target.x, target.y, '#ff8a3d', 0.12, { width: 5 })
-      burst(target.x, target.y, '#ff8a3d', { n: 6, speed: 70, life: 0.4, gravity: -30, glow: true })
-      burst(target.x, target.y, '#ffd34d', { n: 3, speed: 50, life: 0.3, gravity: -20 })
+      // a lobbed fireball that bursts into embers where it lands
+      spawnBolt(t, target.x, target.y, 'fire', '#ff8a3d')
       // Lvl power: the flames lick out and ignite nearby monsters too.
       if (tier > 0) {
         const rad = (0.7 + 0.3 * tier) * TILE
@@ -270,8 +269,8 @@ function updateTowers(dt) {
       damageEnemy(target, dmg)
       applyPoison(target, towerStat(t, 'poisonDps'), towerStat(t, 'poisonDur'))
       applySlow(target, towerStat(t, 'slow'), 0.5)
-      addBeam(t.cx, t.cy, target.x, target.y, '#c065ff', 0.12, { width: 5 })
-      for (let i = 0; i < 5; i++) bubbleAt(target.x, target.y, lighten(t.def.color, 25))
+      // a wobbly goo glob that splatters bubbles on impact
+      spawnBolt(t, target.x, target.y, 'goo', lighten(t.def.color, 8))
       // Lvl power: the goo splashes onto nearby monsters too.
       if (tier > 0) {
         const rad = (0.7 + 0.3 * tier) * TILE
@@ -294,22 +293,22 @@ function updateTowers(dt) {
       targets.forEach((e, i) => {
         const col = cols[i % cols.length]
         damageEnemy(e, dmg)
-        addBeam(t.cx, t.cy, e.x, e.y, col, 0.12, { width: 5 })
+        // curvy rainbow ribbons — each waved a little differently
+        addBeam(t.cx, t.cy, e.x, e.y, col, 0.16, { style: 'wavy', amp: 9, phase: i * 1.3, width: 5 })
         burst(e.x, e.y, col, { n: 4, speed: 80, life: 0.25, glow: true })
       })
       sfx.shoot()
     } else if (kind === 'bounty') {
       fireFx(t, target)
       damageEnemy(target, dmg)
-      addBeam(t.cx, t.cy, target.x, target.y, t.def.color, 0.12, { width: 6 })
-      burst(target.x, target.y, '#ffe14d', { n: 6, speed: 100, life: 0.35, glow: true })
+      // a tumbling gold coin lobbed at the monster
+      spawnBolt(t, target.x, target.y, 'coin', '#ffe14d')
       payBounty(t, target)
-      // Lvl power: extra bolts net more monsters (and more coins).
+      // Lvl power: extra coins net more monsters (and more treasure).
       if (tier > 0) {
         for (const e of extraTargets(t, tier, target)) {
           damageEnemy(e, dmg * 0.6)
-          addBeam(t.cx, t.cy, e.x, e.y, lighten(t.def.color, 15), 0.12, { width: 4 })
-          burst(e.x, e.y, '#ffe14d', { n: 3, speed: 80, life: 0.25, glow: true })
+          spawnBolt(t, e.x, e.y, 'coin', '#ffe14d')
           payBounty(t, e)
         }
       }
@@ -356,6 +355,25 @@ function spawnSplashProjectile(t, target, dmg, cluster) {
   })
 }
 
+// A purely-cosmetic flying shot (damage is already applied at fire time). Each
+// `style` flies and lands differently so no two helper kinds look alike:
+//   spark – a fast straight pellet of light   (beam helpers)
+//   fire  – a lobbed fireball                  (burn helpers)
+//   goo   – a lobbed wobbly glob               (poison helpers)
+//   coin  – a tumbling gold coin               (bounty helpers)
+function spawnBolt(t, tx, ty, style, color) {
+  const dist = Math.hypot(tx - t.cx, ty - t.cy)
+  const speedTiles = style === 'spark' ? 20 : style === 'fire' ? 15 : style === 'coin' ? 14 : 13
+  const arc = (style === 'goo' || style === 'coin') ? Math.min(38, dist * 0.18) : 0
+  S.G.projectiles.push({
+    sx: t.cx, sy: t.cy, x: t.cx, y: t.cy,
+    tx, ty,
+    prog: 0, dur: Math.max(0.07, dist / (speedTiles * TILE)),
+    arc, spin: 0, trail: 0,
+    visual: true, style, color, kind: t.def.kind, dmg: 0, radius: 0,
+  })
+}
+
 function chainZap(t, dmg, first) {
   const hit = new Set()
   const count = towerStat(t, 'chainCount')
@@ -397,20 +415,48 @@ function updateProjectiles(dt) {
     } else {
       p.x = p.sx + (p.tx - p.sx) * p.prog
       p.y = p.sy + (p.ty - p.sy) * p.prog - Math.sin(p.prog * Math.PI) * p.arc
-      // wispy smoke trail puffing off the boom as it flies
+      // a trail wisp puffing off the shot as it flies — tinted to its style
       p.trail += dt
       if (p.trail > 0.03) {
         p.trail = 0
+        const tc = p.style === 'fire' ? 'rgba(255,140,60,0.75)'
+          : p.style === 'coin' ? 'rgba(255,225,120,0.85)'
+          : p.style === 'goo' || p.style === 'spark' ? p.color
+          : 'rgba(225,225,225,0.8)'
         S.G.particles.push({
           kind: 'puff', x: p.x, y: p.y,
           vx: (Math.random() - 0.5) * 12, vy: (Math.random() - 0.5) * 12,
-          life: 0.3, max: 0.3, r: 4, color: 'rgba(225,225,225,0.8)', grav: 0,
+          life: 0.3, max: 0.3, r: p.style === 'spark' ? 3 : 4, color: tc,
+          grav: p.style === 'fire' ? -30 : 0, glow: !!p.style,
         })
       }
     }
   }
   if (S.G.projectiles.some(p => p.done)) {
     S.G.projectiles = S.G.projectiles.filter(p => !p.done)
+  }
+}
+
+// The impact burst when a cosmetic shot lands — particles themed to the shot so
+// a fireball scatters embers, a goo glob pops bubbles, a coin showers sparkles,
+// and a light pellet flashes a little starburst.
+function splatBolt(p) {
+  if (p.style === 'fire') {
+    burst(p.x, p.y, '#ff8a3d', { n: 8, speed: 90, life: 0.4, gravity: -25, glow: true })
+    burst(p.x, p.y, '#ffd34d', { n: 4, speed: 60, life: 0.3, gravity: -15 })
+    ringEffect(p.x, p.y, TILE * 0.45, '#ff8a3d', { width: 3, life: 0.25 })
+  } else if (p.style === 'goo') {
+    for (let i = 0; i < 7; i++) bubbleAt(p.x, p.y, p.color)
+    burst(p.x, p.y, p.color, { n: 6, speed: 70, life: 0.3, glow: true })
+    ringEffect(p.x, p.y, TILE * 0.4, p.color, { width: 3, life: 0.25 })
+  } else if (p.style === 'coin') {
+    burst(p.x, p.y, '#ffe14d', { n: 9, speed: 110, life: 0.4, gravity: 60, glow: true })
+    ringEffect(p.x, p.y, TILE * 0.35, '#ffe14d', { width: 3, life: 0.22 })
+  } else {
+    // spark pellet (beam helpers) — a bright little starburst flash
+    burst(p.x, p.y, '#fff', { n: 6, speed: 120, life: 0.22, glow: true })
+    burst(p.x, p.y, p.color, { n: 6, speed: 80, life: 0.3, glow: true })
+    ringEffect(p.x, p.y, TILE * 0.3, p.color, { width: 2, life: 0.2 })
   }
 }
 
@@ -425,6 +471,8 @@ function splashHurt(x, y, radius, dmg, kind) {
 }
 
 function explode(p) {
+  // cosmetic shots just spray a little impact splatter where they land
+  if (p.visual) { splatBolt(p); return }
   // a filled flash ring + a fat debris spray + a bright core puff = a real BOOM
   ringEffect(p.x, p.y, p.radius, p.color, { fill: true, width: 6 })
   burst(p.x, p.y, p.color, { n: 12, speed: 130, life: 0.4, r: 6 })

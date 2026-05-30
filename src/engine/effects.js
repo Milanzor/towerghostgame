@@ -102,17 +102,29 @@ function addBeam(x1, y1, x2, y2, color, life, opts = {}) {
     kind: 'beam', x1, y1, x2, y2, color, life, max: life,
     style: opts.style || 'laser', width: opts.width ?? 6, core: opts.core !== false,
   }
-  if (p.style === 'bolt') {
-    // precompute a jagged path once so the bolt holds its shape (no per-frame jitter)
-    const segs = opts.segs ?? 5
-    const amp = opts.jag ?? 10
+  if (p.style === 'bolt' || p.style === 'wavy') {
     const nx = -(y2 - y1), ny = x2 - x1
     const len = Math.hypot(nx, ny) || 1
     const pts = [{ x: x1, y: y1 }]
-    for (let i = 1; i < segs; i++) {
-      const f = i / segs
-      const off = (Math.random() - 0.5) * 2 * amp
-      pts.push({ x: x1 + (x2 - x1) * f + (nx / len) * off, y: y1 + (y2 - y1) * f + (ny / len) * off })
+    if (p.style === 'bolt') {
+      // jagged lightning — random kinks, frozen once so it doesn't jitter
+      const segs = opts.segs ?? 5
+      const amp = opts.jag ?? 10
+      for (let i = 1; i < segs; i++) {
+        const f = i / segs
+        const off = (Math.random() - 0.5) * 2 * amp
+        pts.push({ x: x1 + (x2 - x1) * f + (nx / len) * off, y: y1 + (y2 - y1) * f + (ny / len) * off })
+      }
+    } else {
+      // smooth sine ribbon — pinched to zero at both ends
+      const segs = opts.segs ?? 10
+      const amp = opts.amp ?? 8
+      const phase = opts.phase ?? 0
+      for (let i = 1; i < segs; i++) {
+        const f = i / segs
+        const off = Math.sin(f * Math.PI * 2 + phase) * amp * Math.sin(f * Math.PI)
+        pts.push({ x: x1 + (x2 - x1) * f + (nx / len) * off, y: y1 + (y2 - y1) * f + (ny / len) * off })
+      }
     }
     pts.push({ x: x2, y: y2 })
     p.points = pts

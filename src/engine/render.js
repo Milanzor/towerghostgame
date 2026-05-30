@@ -6,6 +6,7 @@ import { drawEmoji } from '../emoji.js'
 import { clamp, lighten, mulberry32 } from './util.js'
 import { towerStat, cellBuildable } from './towers.js'
 import { drawParticles } from './effects.js'
+import { drawEnemyBody } from './critters.js'
 
 
 function render() {
@@ -376,7 +377,36 @@ function drawSuckBeam(t, e) {
 
 function drawProjectiles() {
   for (const p of S.G.projectiles) {
-    // a glowing, tumbling boom-ball; the 💥 stays upright on top of it
+    const st = p.style
+    if (st === 'coin') {
+      // a tumbling gold coin — flips by squashing its width as it spins
+      ctx.save()
+      ctx.translate(p.x, p.y)
+      ctx.scale(Math.max(0.2, Math.abs(Math.cos((p.spin || 0) * 1.5))), 1)
+      ctx.shadowColor = '#ffd34d'; ctx.shadowBlur = 10
+      ctx.fillStyle = '#ffe14d'; ctx.strokeStyle = '#c79a2e'; ctx.lineWidth = 2
+      ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+      ctx.shadowBlur = 0
+      ctx.restore()
+      continue
+    }
+    if (st === 'fire' || st === 'goo' || st === 'spark') {
+      // a glowing orb with a hot white core; goo wobbles as it travels
+      const rad = st === 'spark' ? 6 : 7
+      const wob = st === 'goo' ? 1 + Math.sin((p.spin || 0) * 3) * 0.18 : 1
+      ctx.save()
+      ctx.shadowColor = p.color; ctx.shadowBlur = 12
+      const g = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, rad)
+      g.addColorStop(0, '#fff')
+      g.addColorStop(0.5, lighten(p.color, 30))
+      g.addColorStop(1, p.color)
+      ctx.fillStyle = g
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, rad * wob, rad / wob, 0, 0, Math.PI * 2); ctx.fill()
+      ctx.shadowBlur = 0
+      ctx.restore()
+      continue
+    }
+    // splash boom-ball — a glowing, tumbling shell with the 💥 upright on top
     ctx.save()
     ctx.translate(p.x, p.y)
     ctx.rotate(p.spin || 0)
@@ -392,13 +422,13 @@ function drawProjectiles() {
 }
 
 function drawEnemies() {
-  for (const e of S.G.enemies) {
-    if (e.def.shape === 'ghost') drawGhost(e)
-    else drawCritter(e)
-  }
+  for (const e of S.G.enemies) drawEnemy(e)
 }
 
-function drawGhost(e) {
+// Shared scaffolding around each monster's own hand-drawn body (see critters.js):
+// heal aura, burrow mound, phased translucency, drop shadow, frozen wash, crown,
+// status icons and the HP bar.
+function drawEnemy(e) {
   const def = e.def
   const r = def.radius
   const bob = Math.sin(S.G.time * 3 + e.bobPhase) * 4
@@ -414,99 +444,28 @@ function drawGhost(e) {
 
   // shadow
   ctx.fillStyle = `rgba(0,0,0,${0.25 * bodyA})`
-  ctx.beginPath(); ctx.ellipse(e.x, e.y + r * 0.9, r * 0.8, r * 0.3, 0, 0, Math.PI * 2); ctx.fill()
+  ctx.beginPath(); ctx.ellipse(e.x, e.y + r * 0.92, r * 0.8, r * 0.3, 0, 0, Math.PI * 2); ctx.fill()
 
+  // the creature's bespoke body
   ctx.save()
-  ctx.globalAlpha = 0.94 * bodyA
-  // body
-  ctx.beginPath()
-  ctx.arc(cx, cy, r, Math.PI, Math.PI * 2) // top dome
-  const bottom = cy + r * 0.95
-  ctx.lineTo(cx + r, bottom)
-  const n = 4
-  for (let i = 0; i < n; i++) {
-    const x1 = cx + r - (2 * r) * ((i + 0.5) / n)
-    const x2 = cx + r - (2 * r) * ((i + 1) / n)
-    ctx.quadraticCurveTo(x1, bottom + r * 0.3, x2, bottom)
-  }
-  ctx.lineTo(cx - r, cy)
-  ctx.closePath()
-  const grd = ctx.createLinearGradient(0, cy - r, 0, bottom)
-  grd.addColorStop(0, lighten(def.color, 25))
-  grd.addColorStop(1, def.color)
-  ctx.fillStyle = grd
-  ctx.fill()
+  ctx.globalAlpha = bodyA
+  drawEnemyBody(ctx, e, cx, cy, r, S.G.time)
   ctx.restore()
 
-  ctx.globalAlpha = bodyA
-  // crown for king
-  if (def.crown) {
-    drawEmoji(ctx, '👑', cx, cy - r * 0.95, r)
-  }
-
-  // eyes (look toward movement)
-  const eyeDX = e.facing * 2
-  const ex = r * 0.42, ey = -r * 0.18, ew = r * 0.27, eh = r * 0.34
-  for (const s of [-1, 1]) {
-    ctx.fillStyle = '#fff'
-    ctx.beginPath(); ctx.ellipse(cx + s * ex, cy + ey, ew, eh, 0, 0, Math.PI * 2); ctx.fill()
-    ctx.fillStyle = def.face
-    ctx.beginPath(); ctx.ellipse(cx + s * ex + eyeDX, cy + ey + 2, ew * 0.5, eh * 0.5, 0, 0, Math.PI * 2); ctx.fill()
-  }
-  // rosy cheeks
-  ctx.fillStyle = 'rgba(255,130,170,0.55)'
-  for (const s of [-1, 1]) {
-    ctx.beginPath(); ctx.ellipse(cx + s * r * 0.6, cy + r * 0.18, r * 0.16, r * 0.1, 0, 0, Math.PI * 2); ctx.fill()
-  }
-  // smile
-  ctx.strokeStyle = def.face
-  ctx.lineWidth = Math.max(2, r * 0.08)
-  ctx.lineCap = 'round'
-  ctx.beginPath(); ctx.arc(cx, cy + r * 0.18, r * 0.28, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke()
-  ctx.globalAlpha = 1
-
-  drawStatus(e, cx, cy, r)
-  drawHpBar(e, cx, cy, r)
-}
-
-function drawCritter(e) {
-  const def = e.def
-  const r = def.radius
-  const bob = Math.sin(S.G.time * 4 + e.bobPhase) * 3
-  const squish = 1 + Math.sin(S.G.time * 6 + e.bobPhase) * 0.06
-  const cx = e.x
-  const cy = e.y + bob
-
-  // §3 heal-aura glow ring (under the body)
-  drawHealAura(e, cx, cy, r)
-  // §3 burrowed → mostly hidden underground; just a dust mound + status icons
-  if (e.burrowed) { drawBurrowMound(e); drawStatus(e, cx, cy, r); return }
-  // §3 phased → translucent and dodging one tower kind
-  const bodyA = e.phased ? 0.35 : 1
-  ctx.globalAlpha = bodyA
-
-  // shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.28)'
-  ctx.beginPath(); ctx.ellipse(e.x, e.y + r * 0.95, r * 0.8, r * 0.28, 0, 0, Math.PI * 2); ctx.fill()
-
-  // soft glow body
-  const grd = ctx.createRadialGradient(cx, cy - r * 0.2, r * 0.2, cx, cy, r)
-  grd.addColorStop(0, lighten(def.color, 40))
-  grd.addColorStop(1, def.color)
-  ctx.fillStyle = grd
-  ctx.strokeStyle = 'rgba(0,0,0,0.3)'
-  ctx.lineWidth = 3
-  ctx.beginPath(); ctx.ellipse(cx, cy, r, r / squish, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
-
-  // frozen tint
+  // frozen wash (icy aura over the body when slowed hard)
   if (e.slowTimer > 0 && e.slowFactor <= 0.5) {
-    ctx.fillStyle = 'rgba(150,220,255,0.35)'
-    ctx.beginPath(); ctx.ellipse(cx, cy, r, r / squish, 0, 0, Math.PI * 2); ctx.fill()
+    ctx.globalAlpha = bodyA * 0.38
+    ctx.fillStyle = 'rgba(150,220,255,1)'
+    ctx.beginPath(); ctx.arc(cx, cy, r * 1.02, 0, Math.PI * 2); ctx.fill()
+    ctx.globalAlpha = 1
   }
 
-  // emoji face
-  drawEmoji(ctx, def.emoji, cx, cy + 1, Math.round(r * 1.6))
-  ctx.globalAlpha = 1
+  // crown for kings / bosses
+  if (def.crown) {
+    ctx.globalAlpha = bodyA
+    drawEmoji(ctx, '👑', cx, cy - r * 1.02, r)
+    ctx.globalAlpha = 1
+  }
 
   drawStatus(e, cx, cy, r)
   drawHpBar(e, cx, cy, r)

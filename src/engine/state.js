@@ -141,5 +141,13 @@ export function newGame(levelIndex) {
     time: 0,
     shake: 0,
     flash: 0,
+    // --- Magic Buttons (§2 / §2a / §2b) — all per-room, reset each game ---
+    abilityCD: {},        // id -> seconds of cooldown remaining
+    abilityCharges: { sweep: 1, nap: 1, candy: 1, wave: 1, zap: 1 }, // start ready
+    freezeTimer: 0,       // > 0 while Nap freezes monster movement
+    pickups: [],          // floating ✨ sparkles the kid taps to earn charges
+    zapUsed: false,       // Big Zap is once-per-level
+    aiming: null,         // id of the ability awaiting a swipe (Wave), or null
+    aimSwipe: null,       // live { from, to } points while drawing the Wave
   }
 }

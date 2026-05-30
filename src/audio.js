@@ -55,6 +55,9 @@ export const sfx = {
     notes.forEach((n, i) => setTimeout(() => tone(n, 0.3, 'sawtooth', 0.16), i * 180))
   },
   click: () => tone(660, 0.05, 'triangle', 0.12),
+  // Magic Buttons (§2): a bright sparkle chime on collect, a soft whoosh on cast.
+  sparkle: () => { tone(1320, 0.07, 'sine', 0.12); setTimeout(() => tone(1760, 0.1, 'sine', 0.12), 55) },
+  cast: () => tone(420, 0.22, 'sine', 0.16, 1100),
 }
 
 // ===========================================================================

@@ -6,6 +6,7 @@ import { sfx } from '../audio.js'
 import { floatText, popEffect, ringEffect, emberAt } from './effects.js'
 import { win, lose } from './screens.js'
 import { showPrepBanner, hidePrepBanner } from './ui.js'
+import { maybeDropSparkle } from './abilities.js'
 
 
 // ===========================================================================
@@ -116,6 +117,10 @@ function updateEnemies(dt) {
     if (e.boss) updateBoss(e, dt)
     if (e.leaked) continue // a blink may have pushed it off the end
 
+    // Nap (💤): freeze MOVEMENT only — towers keep firing, DoT keeps ticking,
+    // which feels powerful and safe. Bosses freeze too (fair).
+    if (S.G.freezeTimer > 0) continue
+
     let eff = 1
     if (e.slowTimer > 0) { e.slowTimer -= dt; eff = e.slowFactor }
     const bossMult = e.enraged ? e.boss.enrage.mult : 1
@@ -184,6 +189,7 @@ function killEnemy(e, opts) {
   popEffect(e.x, e.y, e.def.color)
   floatText(e.x, e.y - 10, `+${reward}`, '#ffd34d', 18)
   if (!(opts && opts.silent)) sfx.pop()
+  maybeDropSparkle(e.x, e.y) // §2a: a caught monster may leave a ✨ to collect
   // split into little ones
   if (e.def.split) {
     const { type, count } = e.def.split
@@ -294,6 +300,66 @@ function retreatAlongPath(e, dist) {
   }
 }
 
+// ===========================================================================
+// Magic Button (§2) engine helpers — drive the abilities, reusing the path /
+// pop / kill semantics rather than reaching into ability internals.
+// ===========================================================================
+// 🧹 Sweep: shove EVERY monster back along its path by distPx.
+function sweepAllBack(distPx) {
+  for (const e of S.G.enemies) {
+    if (e.dead || e.leaked) continue
+    retreatAlongPath(e, distPx)
+    ringEffect(e.x, e.y, e.def.radius + 6, '#9be8ff')
+  }
+}
+
+// 💤 Nap: freeze all monster MOVEMENT for `seconds` (ticked down in main loop).
+function freezeAll(seconds) {
+  S.G.freezeTimer = Math.max(S.G.freezeTimer, seconds)
+  for (const e of S.G.enemies) {
+    if (!e.dead) ringEffect(e.x, e.y, e.def.radius + 6, '#cfe9ff')
+  }
+}
+
+// 🌟 Big Zap: catch every NON-boss monster on screen, awarding coins + pop FX
+// just like a normal catch. Bosses are immune (fair).
+function clearNonBoss() {
+  for (const e of S.G.enemies) {
+    if (e.dead || e.boss) continue
+    killEnemy(e, { silent: true })
+  }
+}
+
+// 🌊 Wave (§2b): push back monsters whose position is near the swiped segment
+// from→to. `distPx` = pushback amount, `bandPx` = how close counts as "hit".
+function pushNearLine(from, to, distPx, bandPx) {
+  const ax = from.x, ay = from.y
+  const bx = to.x, by = to.y
+  const dx = bx - ax, dy = by - ay
+  const len2 = dx * dx + dy * dy
+  let any = false
+  for (const e of S.G.enemies) {
+    if (e.dead || e.leaked) continue
+    // distance from enemy to the segment
+    let t = len2 > 0 ? ((e.x - ax) * dx + (e.y - ay) * dy) / len2 : 0
+    t = Math.max(0, Math.min(1, t))
+    const px = ax + dx * t, py = ay + dy * t
+    const dd = Math.hypot(e.x - px, e.y - py)
+    if (dd <= bandPx) {
+      retreatAlongPath(e, distPx)
+      ringEffect(e.x, e.y, e.def.radius + 8, '#7fd8ff')
+      any = true
+    }
+  }
+  // With a single path a swipe might miss everyone; still give a little nudge to
+  // the lead pack so the cast never feels dead.
+  if (!any) {
+    for (const e of S.G.enemies) {
+      if (!e.dead && !e.leaked) { retreatAlongPath(e, distPx * 0.6); ringEffect(e.x, e.y, e.def.radius + 8, '#7fd8ff') }
+    }
+  }
+}
+
 function applyBurn(e, dps, dur) {
   e.burnDps = Math.max(e.burnDps, dps)
   e.burnTimer = Math.max(e.burnTimer, dur)
@@ -316,4 +382,5 @@ function removeDead() {
 
 export {
   startWave, updateSpawning, updateEnemies, checkWaveCleared, removeDead, damageEnemy, applySlow, applyBurn, applyPoison, retreatAlongPath,
+  sweepAllBack, freezeAll, clearNonBoss, pushNearLine,
 }

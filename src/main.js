@@ -9,6 +9,7 @@ import { updateSpawning, updateEnemies, removeDead, checkWaveCleared } from './e
 import { updateTowers, updateProjectiles, positionActionBar } from './engine/towers.js'
 import { render } from './engine/render.js'
 import { buildPalette, syncHUD } from './engine/ui.js'
+import { updateAbilities, updatePickups, buildAbilityTray, refreshAbilityTray } from './engine/abilities.js'
 import { showStart } from './engine/screens.js'
 import './engine/input.js' // registers pointer/keyboard/touch listeners
 
@@ -20,6 +21,7 @@ preloadEmoji([
   '⭐', '👑', '❄️', '💥', '🏚️', '🛡️', '🔥', '🫧', '🪙', '💜', '🌊',
   '🔊', '🔇', '⏩', '🏠', '✨', '👻', '🎉', '🗑️', '⬆️', '🐷',
   '👦', '👧', '➕', // kid profile avatars + add-player card
+  '🧹', '💤', '🍬', // magic-button abilities (🌟 ✨ 🌊 already above)
 
   // themed room props + goal doors (see LEVELS decor/door in content.js)
   '🚪', '🏰', '🌀', '🕸️', '🖼️', '🪦', '🕯️', '🦇', '🧊', '💎', '🦴', '⛄',
@@ -50,11 +52,14 @@ function frame(now) {
       updateProjectiles(sdt)
       removeDead()
       checkWaveCleared()
+      updateAbilities(sdt)  // tick cooldowns + freeze timer
+      updatePickups(sdt)    // bob + fade floating ✨ sparkles
     }
     if (!G.paused) updateParticles(dt * G.speed)
 
     render()
     syncHUD()
+    refreshAbilityTray()
     if (G.selectedTower) positionActionBar(G.selectedTower)
   }
 
@@ -65,6 +70,7 @@ function frame(now) {
 // Boot
 // ===========================================================================
 buildPalette()
+buildAbilityTray()
 showStart()
 initUpdateCheck()
 requestAnimationFrame(frame)

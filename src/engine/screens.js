@@ -6,6 +6,7 @@ import { twemojify, setEmojiText } from '../emoji.js'
 import { ovStart, ovProfiles, ovSelect, ovResult, hideAllOverlays, elLevelName } from './dom.js'
 import { hideActionBar } from './towers.js'
 import { refreshPalette, showPrepBanner, hidePrepBanner } from './ui.js'
+import { resetAbilities } from './abilities.js'
 
 
 // ===========================================================================
@@ -150,6 +151,7 @@ function startLevel(i) {
   setEmojiText(document.getElementById('speedBtn'), '⏩')
   showPrepBanner()
   refreshPalette()
+  resetAbilities() // rebuild the magic-button tray, clear any armed aim
   music.play(i) // each room has its own tune
 }
 

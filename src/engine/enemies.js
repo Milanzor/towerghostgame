@@ -39,9 +39,13 @@ function startWave() {
 function makeEnemy(type, opts = {}) {
   const def = ENEMIES[type]
   const hp = Math.round(def.hp * S.G.level.hpScale)
-  const wp = S.G.level.waypoints
+  // §4 — each enemy walks ONE lane variant. Default to lane 0 (the only lane in
+  // single-path rooms). Split children / boss summons pass the parent's pathId.
+  const pathId = opts.pathId ?? 0
+  const wp = S.G.level.paths[pathId].waypoints
   return {
     type, def,
+    pathId,
     hp, maxHp: hp,
     x: opts.x ?? wp[0].x,
     y: opts.y ?? wp[0].y,
@@ -73,7 +77,11 @@ function makeEnemy(type, opts = {}) {
 }
 
 function spawnEnemy(type) {
-  S.G.enemies.push(makeEnemy(type))
+  // §4 — alternate lanes across spawns for an even split (single-lane rooms
+  // always resolve to lane 0). spawnCount lives on G and persists across waves.
+  const lanes = S.G.level.paths.length
+  const pathId = lanes > 1 ? (S.G.spawnCount++ % lanes) : 0
+  S.G.enemies.push(makeEnemy(type, { pathId }))
 }
 
 // §3 — can a tower of `towerKind` see/hit this monster right now?
@@ -128,9 +136,10 @@ function checkWaveCleared() {
 // Enemies
 // ===========================================================================
 function updateEnemies(dt) {
-  const wp = S.G.level.waypoints
   for (const e of S.G.enemies) {
     if (e.dead) continue
+    // §4 — each enemy follows its own lane's waypoints.
+    const wp = S.G.level.paths[e.pathId].waypoints
     // damage-over-time + healing
     if (e.burnTimer > 0) {
       e.burnTimer -= dt
@@ -249,7 +258,7 @@ function killEnemy(e, opts) {
       const jitter = (i - (count - 1) / 2) * 8
       const child = makeEnemy(type, {
         x: e.x, y: e.y + jitter,
-        seg: e.seg, dist: e.dist, facing: e.facing,
+        seg: e.seg, dist: e.dist, facing: e.facing, pathId: e.pathId,
       })
       S.G.enemies.push(child)
     }
@@ -266,7 +275,7 @@ function updateBoss(e, dt) {
       e.summonTimer = b.summon.interval
       for (let i = 0; i < b.summon.count; i++) {
         const jitter = (i - (b.summon.count - 1) / 2) * 10
-        S.G.enemies.push(makeEnemy(b.summon.type, { x: e.x, y: e.y + jitter, seg: e.seg, dist: e.dist, facing: e.facing }))
+        S.G.enemies.push(makeEnemy(b.summon.type, { x: e.x, y: e.y + jitter, seg: e.seg, dist: e.dist, facing: e.facing, pathId: e.pathId }))
       }
       floatText(e.x, e.y - e.def.radius - 18, 'Minions!', '#c9a0ff', 18)
       ringEffect(e.x, e.y, e.def.radius + 10, '#c9a0ff')
@@ -399,7 +408,7 @@ function powerSpeedMult(e) {
 }
 
 function advanceAlongPath(e, dist) {
-  const wp = S.G.level.waypoints
+  const wp = S.G.level.paths[e.pathId].waypoints
   let remain = dist
   while (remain > 0 && e.seg < wp.length) {
     const dx = wp[e.seg].x - e.x
@@ -414,7 +423,7 @@ function advanceAlongPath(e, dist) {
 // Tornado (🌪️) whirls a monster BACK toward the entrance — the opposite of
 // advanceAlongPath: walk back through the waypoints it already passed.
 function retreatAlongPath(e, dist) {
-  const wp = S.G.level.waypoints
+  const wp = S.G.level.paths[e.pathId].waypoints
   let remain = dist
   while (remain > 0 && e.seg > 1) {
     const px = wp[e.seg - 1].x

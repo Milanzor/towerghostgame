@@ -114,27 +114,30 @@ function drawBuildableDots() {
 }
 
 function drawPath() {
-  const wp = S.G.level.waypoints
+  // §4 — every lane variant shares its start + end, so we stroke each lane's
+  // carpet/centerline but draw the portal + door just once at the shared ends.
+  const lanes = S.G.level.paths
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
-  // outer carpet
+  // outer carpet (all lanes)
   ctx.strokeStyle = 'rgba(0,0,0,0.25)'
   ctx.lineWidth = TILE * 0.82
-  strokeWaypoints(wp)
+  for (const v of lanes) strokeWaypoints(v.waypoints)
   ctx.strokeStyle = S.G.level.floor
   ctx.lineWidth = TILE * 0.66
-  strokeWaypoints(wp)
-  // dashed center line
+  for (const v of lanes) strokeWaypoints(v.waypoints)
+  // dashed center line (all lanes)
   ctx.strokeStyle = 'rgba(255,255,255,0.35)'
   ctx.lineWidth = 4
   ctx.setLineDash([14, 16])
-  strokeWaypoints(wp)
+  for (const v of lanes) strokeWaypoints(v.waypoints)
   ctx.setLineDash([])
 
-  // entrance portal (first visible)
+  const wp = S.G.level.waypoints
+  // entrance portal (shared start)
   const start = clampPoint(wp[0])
   drawPortal(start.x, start.y)
-  // mansion door at exit
+  // mansion door at exit (shared end)
   const end = clampPoint(wp[wp.length - 1])
   drawDoor(end.x, end.y)
 }

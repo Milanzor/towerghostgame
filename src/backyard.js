@@ -25,7 +25,11 @@ function buildPath(cells) {
 }
 
 const PATH_CELLS = [[-1, 2], [3, 2], [3, 6], [7, 6], [7, 2], [11, 2], [11, 6], [15, 6]]
-const { waypoints, pathTiles } = buildPath(PATH_CELLS)
+const lane = buildPath(PATH_CELLS)
+const { waypoints, pathTiles } = lane
+// §4 — single lane, but expose the same normalized `paths` shape the engine now
+// reads (paths[e.pathId].waypoints). waypoints stays as the door/portal alias.
+const paths = [lane]
 
 // The friendly types the ramp draws from, ordered easiest → bouncier. Kept to
 // the cheerful early monsters (no bosses, nothing tough) so it always stays
@@ -59,6 +63,7 @@ export const BACKYARD = {
   areaName: 'Backyard',
   areaEmoji: '🏡',
   isBoss: false,
+  paths,
   waypoints,
   pathTiles,
   waveGen,

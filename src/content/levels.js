@@ -61,6 +61,27 @@ const PATHS = {
   L3: [[-1, 3], [10, 3], [10, 7], [5, 7], [5, 5], [13, 5], [13, 2], [15, 2]],
   L4: [[-1, 7], [2, 7], [2, 3], [6, 3], [6, 7], [10, 7], [10, 3], [14, 3], [14, 6], [15, 6]],
   L5: [[-1, 2], [5, 2], [5, 6], [9, 6], [9, 1], [13, 1], [13, 5], [15, 5]],
+
+  // §4 Branching lane variants. Each pair SHARES its first cell (entry) and its
+  // last cell (exit/door) so the carpet, portal, mascot and door stay put; the
+  // middle diverges (one lane high, one lane low) then rejoins. Used by a few
+  // mid/late rooms so the kid must cover BOTH branches.
+
+  // Creaky Stairs (Mansion room 3) — splits after the entry, rejoins before the door.
+  M3a: [[-1, 4], [2, 4], [2, 1], [7, 1], [7, 4], [11, 4], [11, 2], [15, 2]],
+  M3b: [[-1, 4], [2, 4], [2, 6], [7, 6], [7, 4], [11, 4], [11, 2], [15, 2]],
+
+  // Crystal Lake (Caverns room 3) — two big sweeping switchbacks that meet again.
+  I3a: [[-1, 7], [4, 7], [4, 2], [9, 2], [9, 6], [12, 6], [15, 6]],
+  I3b: [[-1, 7], [4, 7], [4, 4], [9, 4], [9, 6], [12, 6], [15, 6]],
+
+  // Iron Forge (Dungeon room 4) — a high road and a low road through the forge.
+  J4a: [[-1, 2], [3, 2], [3, 1], [9, 1], [9, 5], [13, 5], [13, 3], [15, 3]],
+  J4b: [[-1, 2], [3, 2], [3, 6], [9, 6], [9, 5], [13, 5], [13, 3], [15, 3]],
+
+  // Nebula Drift (Void room 2) — two wide orbits that drift apart and reunite.
+  L2a: [[-1, 1], [4, 1], [4, 3], [11, 3], [11, 7], [15, 7]],
+  L2b: [[-1, 1], [4, 1], [4, 6], [11, 6], [11, 7], [15, 7]],
 }
 
 // ===========================================================================
@@ -86,7 +107,7 @@ const AREA_DEFS = [
           [{ type: 'candy', count: 12, spacing: 0.45 }, { type: 'boo', count: 6, spacing: 0.8 }],
           [{ type: 'bat', count: 8, spacing: 0.6 }, { type: 'slammer', count: 3, spacing: 1.4 }],
         ] },
-      { name: 'Creaky Stairs', path: 'M3', startCoins: 175, lives: 14, hpScale: 1.25, rewardScale: 1.07,
+      { name: 'Creaky Stairs', paths: ['M3a', 'M3b'], startCoins: 175, lives: 14, hpScale: 1.25, rewardScale: 1.07,
         waves: [
           [{ type: 'greenie', count: 14, spacing: 0.45 }],
           [{ type: 'flyer', count: 8, spacing: 0.7 }, { type: 'bat', count: 8, spacing: 0.5 }],
@@ -127,7 +148,7 @@ const AREA_DEFS = [
           [{ type: 'zombie', count: 8, spacing: 0.8 }, { type: 'blob', count: 10, spacing: 0.5 }],
           [{ type: 'spider', count: 10, spacing: 0.5 }, { type: 'alien', count: 8, spacing: 0.6 }],
         ] },
-      { name: 'Crystal Lake', path: 'I3', startCoins: 230, lives: 13, hpScale: 1.9, rewardScale: 1.24,
+      { name: 'Crystal Lake', paths: ['I3a', 'I3b'], startCoins: 230, lives: 13, hpScale: 1.9, rewardScale: 1.24,
         waves: [
           [{ type: 'blob', count: 14, spacing: 0.45 }, { type: 'eyeball', count: 10, spacing: 0.4 }],
           [{ type: 'mama', count: 2, spacing: 1.4 }, { type: 'zombie', count: 8, spacing: 0.7 }],
@@ -175,7 +196,7 @@ const AREA_DEFS = [
           [{ type: 'robot', count: 8, spacing: 0.8 }, { type: 'microbe', count: 12, spacing: 0.4 }],
           [{ type: 'octopus', count: 10, spacing: 0.6 }, { type: 'pumpkin', count: 12, spacing: 0.45 }],
         ] },
-      { name: 'Iron Forge', path: 'J4', startCoins: 290, lives: 11, hpScale: 2.75, rewardScale: 1.4,
+      { name: 'Iron Forge', paths: ['J4a', 'J4b'], startCoins: 290, lives: 11, hpScale: 2.75, rewardScale: 1.4,
         waves: [
           [{ type: 'robot', count: 10, spacing: 0.6 }],
           [{ type: 'caterpillar', count: 10, spacing: 0.6 }, { type: 'spider', count: 12, spacing: 0.4 }],
@@ -243,7 +264,7 @@ const AREA_DEFS = [
           [{ type: 'robot', count: 12, spacing: 0.5 }, { type: 'microbe', count: 14, spacing: 0.4 }],
           [{ type: 'dragon', count: 10, spacing: 0.6 }, { type: 'alien', count: 14, spacing: 0.4 }],
         ] },
-      { name: 'Nebula Drift', path: 'L2', startCoins: 360, lives: 10, hpScale: 4.3, rewardScale: 1.58,
+      { name: 'Nebula Drift', paths: ['L2a', 'L2b'], startCoins: 360, lives: 10, hpScale: 4.3, rewardScale: 1.58,
         waves: [
           [{ type: 'eyeball', count: 22, spacing: 0.25 }],
           [{ type: 'robot', count: 14, spacing: 0.45 }, { type: 'alien', count: 14, spacing: 0.4 }],
@@ -280,9 +301,24 @@ const AREA_DEFS = [
 // stamping each room with its area's theme + metadata. AREAS keeps the
 // grouping so the room picker can show one section per world.
 // ---------------------------------------------------------------------------
+// Normalize a room to the branching-ready level shape (§4). A room may declare
+// EITHER a single `path: 'M1'` (today) OR `paths: ['M1a','M1b']` (2+ lane
+// variants that SHARE the first and last cell). We always produce:
+//   level.paths     — array of { waypoints, pathTiles } variants (≥1)
+//   level.waypoints  — ALIAS for paths[0].waypoints (the "main" lane; the door,
+//                      portal and mascot read this — all lanes share start+end)
+//   level.pathTiles  — UNION of every variant's tiles (building blocked on every
+//                      lane; decor avoids them all)
+// Single-path rooms become paths:[oneVariant] — identical behavior to before.
 function level(opts) {
-  const { waypoints, pathTiles } = buildPath(opts.path)
-  return { ...opts, waypoints, pathTiles }
+  const cellLists = opts.paths
+    ? opts.paths.map((id) => PATHS[id])
+    : [PATHS[opts.path]]
+  const paths = cellLists.map((cells) => buildPath(cells))
+  const pathTiles = new Set()
+  for (const v of paths) for (const t of v.pathTiles) pathTiles.add(t)
+  const { path, ...rest } = opts // drop the raw id(s) from the level object
+  return { ...rest, paths, waypoints: paths[0].waypoints, pathTiles }
 }
 
 export const LEVELS = []
@@ -293,7 +329,6 @@ export const AREAS = AREA_DEFS.map((area, ai) => {
     levelIndices.push(idx)
     LEVELS.push(level({
       ...room,
-      path: PATHS[room.path],
       bg: room.bg || area.bg,
       floor: room.floor || area.floor,
       areaName: area.name,

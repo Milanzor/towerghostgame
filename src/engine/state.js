@@ -160,6 +160,7 @@ export function newGameFromLevel(level, levelIndex, opts = {}) {
     spawnQueue: [],
     spawnTimer: 0,
     nextGap: 0,
+    spawnCount: 0,        // §4 — running spawn tally; alternates enemies across lanes
     enemies: [],
     towers: [],
     projectiles: [],

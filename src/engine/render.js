@@ -295,6 +295,9 @@ function drawTowerBody(t) {
       ctx.beginPath(); ctx.arc(t.cx, t.cy, rp, 0, Math.PI * 2); ctx.fill()
       ctx.globalAlpha = 1
     }
+    // firing kick: a quick scale-pop on the helper + a muzzle flash toward its aim
+    let fp = 0
+    if (t.firePulse > 0) { t.firePulse -= 0.016; fp = clamp(t.firePulse / 0.16, 0, 1) }
     // shadow
     ctx.fillStyle = 'rgba(0,0,0,0.3)'
     ctx.beginPath(); ctx.ellipse(t.cx, t.cy + 16, 22, 9, 0, 0, Math.PI * 2); ctx.fill()
@@ -312,8 +315,19 @@ function drawTowerBody(t) {
       ctx.lineWidth = 3
       ctx.beginPath(); ctx.arc(t.cx, t.cy, 27, 0, Math.PI * 2); ctx.stroke()
     }
-    // emoji
-    drawEmoji(ctx, t.def.emoji, t.cx, t.cy + 1, 32)
+    // muzzle flash — a bright bloom at the helper's rim, pointed at its target
+    if (fp > 0 && t.aim) {
+      const ang = Math.atan2(t.aim.y - t.cy, t.aim.x - t.cx)
+      const mx = t.cx + Math.cos(ang) * 18, my = t.cy + Math.sin(ang) * 18
+      ctx.globalAlpha = fp * 0.85
+      ctx.fillStyle = lighten(t.def.color, 55)
+      ctx.shadowColor = t.def.color; ctx.shadowBlur = 12
+      ctx.beginPath(); ctx.arc(mx, my, 4 + fp * 6, 0, Math.PI * 2); ctx.fill()
+      ctx.shadowBlur = 0
+      ctx.globalAlpha = 1
+    }
+    // emoji (pops a touch bigger the instant it fires)
+    drawEmoji(ctx, t.def.emoji, t.cx, t.cy + 1, 32 + fp * 6)
     // level badge (shows the helper's level once upgraded)
     if (t.level >= 2) {
       ctx.fillStyle = '#ffd34d'
@@ -331,9 +345,11 @@ function drawTowerBody(t) {
       ctx.beginPath(); ctx.arc(t.cx, t.cy, 24, 0, Math.PI * 2); ctx.fill()
       drawEmoji(ctx, '❄️', t.cx, t.cy, 20)
     }
-    // active suck beam
-    if (t.beamTo && !t.beamTo.dead) {
-      drawSuckBeam(t, t.beamTo)
+    // active suck beam(s) — leveled vacuums grab several monsters at once
+    if (t.beamTargets) {
+      for (const e of t.beamTargets) {
+        if (e && !e.dead) drawSuckBeam(t, e)
+      }
     }
   }
 }
@@ -360,10 +376,17 @@ function drawSuckBeam(t, e) {
 
 function drawProjectiles() {
   for (const p of S.G.projectiles) {
+    // a glowing, tumbling boom-ball; the 💥 stays upright on top of it
+    ctx.save()
+    ctx.translate(p.x, p.y)
+    ctx.rotate(p.spin || 0)
+    ctx.shadowColor = p.color; ctx.shadowBlur = 10
     ctx.fillStyle = p.color
     ctx.strokeStyle = 'rgba(0,0,0,0.3)'
     ctx.lineWidth = 2
-    ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+    ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+    ctx.shadowBlur = 0
+    ctx.restore()
     drawEmoji(ctx, '💥', p.x, p.y, 16)
   }
 }

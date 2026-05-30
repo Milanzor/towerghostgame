@@ -38,7 +38,12 @@ mansion door. Nothing scary — it's all bright, bouncy and silly. 💜
 
 - Tower `kind`s (in `content.js` / handled in `main.js` `updateTowers`):
   `beam`, `suck`, `splash`, `chain`, `burn`, `poison`, `frost`, `pulse`,
-  `multishot`, `bank`.
+  `multishot`, `bank`, `snipe` (hits the toughest), `bounty` (bonus coins on
+  catch), `boost` (buffs nearby helpers, never fires), `pull` (whirls the lead
+  monster backwards).
+- Every helper can be **leveled up** to `MAX_LEVEL` (5). There are no per-level
+  stat tables — `towerStat()` in `main.js` grows the base stats via
+  `LEVEL_GROWTH`, so a new helper just needs its base stats.
 - Enemy powers (optional fields on an enemy def): `armor`, `shield`, `regen`,
   `split: { type, count }`. Enemies render as classic ghosts (`shape: 'ghost'`) or
   as emoji critters (any def with an `emoji`).

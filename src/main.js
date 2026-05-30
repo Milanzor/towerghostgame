@@ -608,6 +608,26 @@ function advanceAlongPath(e, dist) {
   if (e.seg >= wp.length) e.leaked = true
 }
 
+// Tornado (🌪️) whirls a monster BACK toward the entrance — the opposite of
+// advanceAlongPath: walk back through the waypoints it already passed.
+function retreatAlongPath(e, dist) {
+  const wp = G.level.waypoints
+  let remain = dist
+  while (remain > 0 && e.seg > 1) {
+    const px = wp[e.seg - 1].x
+    const py = wp[e.seg - 1].y
+    const dx = px - e.x
+    const dy = py - e.y
+    const d = Math.hypot(dx, dy)
+    if (d <= remain) {
+      e.x = px; e.y = py; e.dist = Math.max(0, e.dist - d); remain -= d; e.seg--
+    } else {
+      e.x += (dx / d) * remain; e.y += (dy / d) * remain
+      e.dist = Math.max(0, e.dist - remain); remain = 0
+    }
+  }
+}
+
 function applyBurn(e, dps, dur) {
   e.burnDps = Math.max(e.burnDps, dps)
   e.burnTimer = Math.max(e.burnTimer, dur)
@@ -631,11 +651,32 @@ function removeDead() {
 // ===========================================================================
 // Towers
 // ===========================================================================
+// Leveling: every helper can be upgraded all the way to MAX_LEVEL. Rather than
+// authoring a stat block per level, we grow the base stat by a per-stat factor
+// for each level above 1, so adding new helpers needs no upgrade tables. Some
+// stats get *smaller* as they grow (cooldown → shoots faster; slow → stronger).
+const MAX_LEVEL = 5
+const LEVEL_GROWTH = {
+  damage: 1.35, cooldown: 0.9, range: 1.05,
+  burnDps: 1.35, burnDur: 1.1, poisonDps: 1.35, poisonDur: 1.1,
+  splashRadius: 1.1, income: 1.5, slow: 0.88, slowDur: 1.12,
+  chainRange: 1.06, bounty: 1.4, pull: 1.12, boostDmg: 1.12, boostRate: 0.95,
+}
+
 function towerStat(t, stat) {
-  if (t.level >= 2 && t.def.upgrade && t.def.upgrade[stat] !== undefined) {
-    return t.def.upgrade[stat]
-  }
-  return t.def[stat]
+  const base = t.def[stat]
+  if (base === undefined) return undefined
+  const steps = (t.level || 1) - 1
+  if (steps <= 0) return base
+  // count-style stats gain a whole +1 every two levels
+  if (stat === 'chainCount' || stat === 'shots') return base + Math.floor(steps / 2)
+  const g = LEVEL_GROWTH[stat]
+  return g === undefined ? base : base * Math.pow(g, steps)
+}
+
+// What the next level-up costs — scales with the helper's base price and level.
+function upgradeCost(t) {
+  return Math.round(t.def.cost * (0.9 + 0.55 * (t.level - 1)))
 }
 
 function findTarget(t) {
@@ -669,6 +710,25 @@ function findTargets(t, n) {
   return inRange.slice(0, n)
 }
 
+// Snipers (🦉) pick the toughest monster in range — the one with the most HP
+// left — so they hammer big bruisers and bosses instead of wasting shots.
+function findStrongest(t) {
+  const rangePx = towerStat(t, 'range') * TILE
+  const r2 = rangePx * rangePx
+  let best = null
+  let bestHp = -1
+  for (const e of G.enemies) {
+    if (e.dead) continue
+    const dx = e.x - t.cx
+    const dy = e.y - t.cy
+    if (dx * dx + dy * dy <= r2 && e.hp > bestHp) {
+      best = e
+      bestHp = e.hp
+    }
+  }
+  return best
+}
+
 function enemiesInRange(cx, cy, rangePx) {
   const r2 = rangePx * rangePx
   const out = []
@@ -682,19 +742,38 @@ function enemiesInRange(cx, cy, rangePx) {
 }
 
 function updateTowers(dt) {
+  // Cheer Captains (📣 boost) buff every nearby helper. Recompute the buffs
+  // each frame so placing/selling a booster (or hexing one) takes effect at once.
+  for (const t of G.towers) { t.dmgBuff = 1; t.rateBuff = 1 }
+  for (const b of G.towers) {
+    if (b.def.kind !== 'boost' || b.disabledTimer > 0) continue
+    const rangePx = towerStat(b, 'range') * TILE
+    const r2 = rangePx * rangePx
+    for (const t of G.towers) {
+      if (t === b || t.def.kind === 'boost') continue
+      const dx = t.cx - b.cx, dy = t.cy - b.cy
+      if (dx * dx + dy * dy <= r2) {
+        t.dmgBuff = Math.max(t.dmgBuff, towerStat(b, 'boostDmg'))
+        t.rateBuff = Math.min(t.rateBuff, towerStat(b, 'boostRate'))
+      }
+    }
+  }
+
   for (const t of G.towers) {
     t.cd -= dt
     t.beamTo = null
     // hexed by a boss — frozen solid, can't fire
     if (t.disabledTimer > 0) { t.disabledTimer -= dt; continue }
-    if (t.cd > 0) continue
     const kind = t.def.kind
+    if (kind === 'boost') continue // support only — never fires
+    if (t.cd > 0) continue
+    const rate = t.rateBuff || 1
 
     if (kind === 'bank') {
       const income = towerStat(t, 'income')
       G.coins += income
       floatText(t.cx, t.cy - 14, `+${income}`, '#ffd34d', 16)
-      t.cd = towerStat(t, 'cooldown')
+      t.cd = towerStat(t, 'cooldown') * rate
       sfx.coin()
       continue
     }
@@ -703,8 +782,8 @@ function updateTowers(dt) {
       const rangePx = towerStat(t, 'range') * TILE
       const hits = enemiesInRange(t.cx, t.cy, rangePx)
       if (hits.length === 0) continue
-      t.cd = towerStat(t, 'cooldown')
-      const dmg = towerStat(t, 'damage')
+      t.cd = towerStat(t, 'cooldown') * rate
+      const dmg = towerStat(t, 'damage') * (t.dmgBuff || 1)
       for (const e of hits) {
         damageEnemy(e, dmg)
         if (kind === 'frost') applySlow(e, towerStat(t, 'slow'), towerStat(t, 'slowDur'))
@@ -715,12 +794,12 @@ function updateTowers(dt) {
       continue
     }
 
-    const target = findTarget(t)
+    const target = kind === 'snipe' ? findStrongest(t) : findTarget(t)
     if (!target) continue
-    t.cd = towerStat(t, 'cooldown')
-    const dmg = towerStat(t, 'damage')
+    t.cd = towerStat(t, 'cooldown') * rate
+    const dmg = towerStat(t, 'damage') * (t.dmgBuff || 1)
 
-    if (kind === 'beam') {
+    if (kind === 'beam' || kind === 'snipe') {
       damageEnemy(target, dmg)
       addBeam(t.cx, t.cy, target.x, target.y, t.def.color, 0.12)
       sfx.shoot()
@@ -759,6 +838,24 @@ function updateTowers(dt) {
         damageEnemy(e, dmg)
         addBeam(t.cx, t.cy, e.x, e.y, cols[i % cols.length], 0.12)
       })
+      sfx.shoot()
+    } else if (kind === 'bounty') {
+      damageEnemy(target, dmg)
+      addBeam(t.cx, t.cy, target.x, target.y, t.def.color, 0.12)
+      // a clean catch pays a little extra treasure
+      if (target.dead) {
+        const bonus = Math.round(towerStat(t, 'bounty'))
+        G.coins += bonus
+        floatText(target.x, target.y - 26, `+${bonus}`, '#ffe14d', 16)
+      }
+      sfx.shoot()
+    } else if (kind === 'pull') {
+      damageEnemy(target, dmg)
+      // big bosses are too heavy to whirl far
+      retreatAlongPath(target, towerStat(t, 'pull') * TILE * (target.def.slowImmune ? 0.25 : 1))
+      applySlow(target, 0.6, 0.4)
+      addBeam(t.cx, t.cy, target.x, target.y, t.def.color, 0.12)
+      ringEffect(target.x, target.y, target.def.radius + 8, t.def.color)
       sfx.shoot()
     }
   }
@@ -947,13 +1044,13 @@ canvas.addEventListener('pointerleave', () => { if (G && !dragKey) G.hoverCell =
 
 // ---- Action bar (upgrade / sell) ----
 function showActionBar(t) {
-  const upgradable = t.level < 2 && t.def.upgrade
-  const upCost = upgradable ? t.def.upgrade.cost : 0
+  const upgradable = t.level < MAX_LEVEL
+  const upCost = upgradable ? upgradeCost(t) : 0
   const refund = Math.round(t.totalSpent * 0.6)
   actionBar.innerHTML = `
     ${upgradable
-      ? `<button class="up" ${G.coins < upCost ? 'disabled' : ''} data-act="up">⬆️ Upgrade 🪙${upCost}</button>`
-      : `<button class="up" disabled>⭐ Max</button>`}
+      ? `<button class="up" ${G.coins < upCost ? 'disabled' : ''} data-act="up">⬆️ Lvl ${t.level + 1} 🪙${upCost}</button>`
+      : `<button class="up" disabled>⭐ Max Lvl ${MAX_LEVEL}</button>`}
     <button class="sell" data-act="sell">🗑️ Sell 🪙${refund}</button>
   `
   twemojify(actionBar)
@@ -975,14 +1072,14 @@ function positionActionBar(t) {
   actionBar.style.top = `${(t.cy / FIELD_H) * 100}%`
 }
 function upgradeTower(t) {
-  if (t.level >= 2 || !t.def.upgrade) return
-  const cost = t.def.upgrade.cost
+  if (t.level >= MAX_LEVEL) return
+  const cost = upgradeCost(t)
   if (G.coins < cost) { sfx.hurt(); return }
   G.coins -= cost
-  t.level = 2
+  t.level++
   t.totalSpent += cost
   sfx.upgrade()
-  floatText(t.cx, t.cy - 18, 'LEVEL UP!', '#7be38c', 18)
+  floatText(t.cx, t.cy - 18, `LEVEL ${t.level}!`, '#7be38c', 18)
   showActionBar(t)
   refreshPalette()
 }
@@ -1424,6 +1521,14 @@ function drawTowers() {
       ctx.lineWidth = 2
       ctx.beginPath(); ctx.arc(t.cx, t.cy, rangePx, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
     }
+    // Cheer Captain shows its buff area softly so kids can see who it helps
+    if (t.def.kind === 'boost') {
+      const rp = towerStat(t, 'range') * TILE
+      ctx.globalAlpha = 0.1 + Math.sin(G.time * 3) * 0.03
+      ctx.fillStyle = t.def.color
+      ctx.beginPath(); ctx.arc(t.cx, t.cy, rp, 0, Math.PI * 2); ctx.fill()
+      ctx.globalAlpha = 1
+    }
     // frost/pulse aura flash
     if (t.frostPulse > 0) {
       t.frostPulse -= 0.016
@@ -1444,11 +1549,24 @@ function drawTowers() {
     ctx.strokeStyle = 'rgba(0,0,0,0.35)'
     ctx.lineWidth = 3
     ctx.beginPath(); ctx.arc(t.cx, t.cy, 24, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+    // buffed-by-a-Cheer-Captain glow ring
+    if (t.dmgBuff > 1) {
+      ctx.strokeStyle = `rgba(255,211,77,${0.45 + Math.sin(G.time * 8) * 0.2})`
+      ctx.lineWidth = 3
+      ctx.beginPath(); ctx.arc(t.cx, t.cy, 27, 0, Math.PI * 2); ctx.stroke()
+    }
     // emoji
     drawEmoji(ctx, t.def.emoji, t.cx, t.cy + 1, 32)
-    // level pips
+    // level badge (shows the helper's level once upgraded)
     if (t.level >= 2) {
-      drawEmoji(ctx, '⭐', t.cx + 16, t.cy - 16, 15)
+      ctx.fillStyle = '#ffd34d'
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)'
+      ctx.lineWidth = 2
+      ctx.beginPath(); ctx.arc(t.cx + 17, t.cy - 15, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+      ctx.fillStyle = '#5a3a00'
+      ctx.font = '800 13px "Baloo 2", system-ui, sans-serif'
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText(t.level, t.cx + 17, t.cy - 14)
     }
     // hexed / frozen by a boss
     if (t.disabledTimer > 0) {

@@ -6,8 +6,6 @@ import { drawEmoji } from '../emoji.js'
 import { clamp, lighten, mulberry32 } from './util.js'
 import { towerStat, cellBuildable } from './towers.js'
 import { drawParticles } from './effects.js'
-import { currentProfile } from './state.js'
-import { drawAvatar } from '../cosmetics.js'
 
 
 function render() {
@@ -30,9 +28,6 @@ function render() {
   drawProjectiles()
   drawEnemies()
   drawParticles()
-  drawMascot()
-  drawPickups()
-  drawAimGuide()
   drawPlacementPreview()
   if (S.G.phase === 'tidyup') drawTidyUp()
 
@@ -186,23 +181,6 @@ function drawDoor(x, y) {
     ctx.globalAlpha = 1
   }
   ctx.restore()
-}
-
-// The chosen avatar (§1) stands guard beside the mansion door, reacting to the
-// game. Tucked just off the goal so it never hides the door or the path.
-function drawMascot() {
-  const wp = S.G.level.waypoints
-  const end = clampPoint(wp[wp.length - 1])
-  // Stand to the side of the door that has more open room, and lift it above so
-  // it never sits on the path or hides behind the right-edge ability tray.
-  const side = end.x > FIELD_W / 2 ? -1 : 1
-  let mx = end.x + side * 50
-  let my = end.y - 48
-  // keep clear of the right-edge ability tray (~64px wide) and the screen edges
-  mx = clamp(mx, 36, FIELD_W - 92)
-  my = clamp(my, 40, FIELD_H - 40)
-  const prof = currentProfile()
-  drawAvatar(ctx, { avatar: prof.avatar, hat: prof.hat }, mx, my, 46, S.G.time, { prep: S.G.phase === 'prep' })
 }
 
 // §9 — the closure ritual's piggy bank + the coin swoosh. The piggy bobs in the
@@ -571,43 +549,6 @@ function drawHpBar(e, cx, cy, r) {
   const frac = clamp(e.hp / e.maxHp, 0, 1)
   ctx.fillStyle = frac > 0.5 ? '#7be38c' : frac > 0.25 ? '#ffd34d' : '#ff6b8b'
   roundRect(bx, by, w * frac, h, 3); ctx.fill()
-}
-
-// Floating ✨ sparkles (§2a) — big, slow, gently pulsing so tiny fingers catch.
-function drawPickups() {
-  for (const p of S.G.pickups) {
-    const a = clamp(p.life / p.max, 0, 1)
-    const bob = Math.sin(p.bobPhase) * 5
-    const pulse = 1 + Math.sin(S.G.time * 5 + p.bobPhase) * 0.12
-    ctx.save()
-    ctx.globalAlpha = Math.min(1, a * 1.6)
-    // soft halo
-    ctx.globalAlpha *= 0.5
-    ctx.fillStyle = '#ffe98a'
-    ctx.beginPath(); ctx.arc(p.x, p.y + bob, p.r * 0.9 * pulse, 0, Math.PI * 2); ctx.fill()
-    ctx.globalAlpha = Math.min(1, a * 1.6)
-    drawEmoji(ctx, '✨', p.x, p.y + bob, Math.round(p.r * 1.7 * pulse))
-    ctx.restore()
-  }
-}
-
-// Subtle highlight + the live swipe line while a 🌊 Wave is armed (§2b).
-function drawAimGuide() {
-  if (!S.G.aiming) return
-  // dim wash so the kid knows "now swipe"
-  ctx.fillStyle = 'rgba(127,216,255,0.10)'
-  ctx.fillRect(-20, -20, FIELD_W + 40, FIELD_H + 40)
-  const sw = S.G.aimSwipe
-  if (sw) {
-    ctx.save()
-    ctx.strokeStyle = 'rgba(127,216,255,0.9)'
-    ctx.lineWidth = 10
-    ctx.lineCap = 'round'
-    ctx.shadowColor = '#7fd8ff'
-    ctx.shadowBlur = 16
-    ctx.beginPath(); ctx.moveTo(sw.from.x, sw.from.y); ctx.lineTo(sw.to.x, sw.to.y); ctx.stroke()
-    ctx.restore()
-  }
 }
 
 function drawPlacementPreview() {

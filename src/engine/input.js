@@ -7,7 +7,6 @@ import { setEmojiText } from '../emoji.js'
 import { canvas } from './dom.js'
 import { placeTower, towerAt, selectPlacedTower, hideActionBar } from './towers.js'
 import { refreshPalette, onGo } from './ui.js'
-import { collectPickupAt, resolveAim, cancelAim } from './abilities.js'
 
 
 // Keyboard shortcuts while playing.
@@ -140,27 +139,10 @@ function canvasPos(ev) {
   return { x, y, c: Math.floor(x / TILE), r: Math.floor(y / TILE) }
 }
 
-// While a 🌊 Wave is armed, the next swipe on the field is captured as the aim
-// gesture (NOT a tower placement). Gated entirely behind S.G.aiming so it never
-// fights the drag-to-place gesture.
-let aimActive = false
-
 canvas.addEventListener('pointerdown', (ev) => {
   if (S.screen !== 'playing') return
   if (dragKey) return // a palette drag is in progress
-  const pos = canvasPos(ev)
-
-  // §2b: an armed Wave captures this swipe.
-  if (S.G.aiming) {
-    aimActive = true
-    S.G.aimSwipe = { from: { x: pos.x, y: pos.y }, to: { x: pos.x, y: pos.y } }
-    return
-  }
-
-  // §2a: tapping a floating sparkle collects it (before place/select logic).
-  if (collectPickupAt(pos.x, pos.y)) return
-
-  const { c, r } = pos
+  const { c, r } = canvasPos(ev)
   if (S.G.selectedType) {
     placeTower(c, r)
     return
@@ -172,30 +154,6 @@ canvas.addEventListener('pointerdown', (ev) => {
     S.G.selectedTower = null
     hideActionBar()
   }
-})
-
-// Track + resolve the aim swipe (works for mouse and touch via Pointer events).
-window.addEventListener('pointermove', (ev) => {
-  if (!aimActive || !S.G || !S.G.aimSwipe) return
-  S.G.aimSwipe.to = canvasPos(ev)
-})
-window.addEventListener('pointerup', (ev) => {
-  if (!aimActive) return
-  aimActive = false
-  const sw = S.G && S.G.aimSwipe
-  S.G.aimSwipe = null
-  if (!sw) { cancelAim(); return }
-  const to = canvasPos(ev)
-  const moved = Math.hypot(to.x - sw.from.x, to.y - sw.from.y)
-  // a real swipe → wash that line; a tap (no movement) → cancel the aim
-  if (moved > TILE * 0.5) resolveAim(sw.from, to)
-  else cancelAim()
-})
-window.addEventListener('pointercancel', () => {
-  if (!aimActive) return
-  aimActive = false
-  if (S.G) S.G.aimSwipe = null
-  cancelAim()
 })
 
 canvas.addEventListener('pointermove', (ev) => {

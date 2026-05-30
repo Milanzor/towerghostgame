@@ -1,3 +1,10 @@
+// Baloo 2 — a rounded, bouncy, kid-friendly display face. Latin-only subsets
+// keep the deploy lean (no Devanagari/Vietnamese the game never shows).
+import '@fontsource/baloo-2/latin-400.css'
+import '@fontsource/baloo-2/latin-500.css'
+import '@fontsource/baloo-2/latin-600.css'
+import '@fontsource/baloo-2/latin-700.css'
+import '@fontsource/baloo-2/latin-800.css'
 import './style.css'
 import './engine/dom.js' // builds the DOM scaffold first (side effects)
 import { TOWERS, ENEMIES } from './content.js'
@@ -9,9 +16,7 @@ import { updateSpawning, updateEnemies, removeDead, checkWaveCleared } from './e
 import { updateTowers, updateProjectiles, positionActionBar } from './engine/towers.js'
 import { render } from './engine/render.js'
 import { buildPalette, syncHUD } from './engine/ui.js'
-import { updateAbilities, updatePickups, buildAbilityTray, refreshAbilityTray } from './engine/abilities.js'
-import { updateMascot } from './cosmetics.js'
-import { tickPlayTimer } from './engine/grownup.js'
+import { tickPlayTimer, wireSettingsButton } from './engine/grownup.js'
 import { showStart, tickTidyUp } from './engine/screens.js'
 import './engine/input.js' // registers pointer/keyboard/touch listeners
 
@@ -23,12 +28,12 @@ preloadEmoji([
   '⭐', '👑', '❄️', '💥', '🏚️', '🛡️', '🔥', '🫧', '🪙', '💜', '🌊',
   '🔊', '🔇', '⏩', '🏠', '✨', '👻', '🎉', '🗑️', '⬆️', '🐷',
   '👦', '👧', '➕', // kid profile avatars + add-player card
-  '🧹', '💤', '🍬', // magic-button abilities (🌟 ✨ 🌊 already above)
   '💚', '🐤', '🐚', // §3 heal-aura "mama" mend cue + Mama Chick + Bubble Shell (🫧 shielder + 💨 burrow already above)
-  // §1 avatars/shop: hats, the shop bag + the mascot reaction faces
-  '🛍️', '🎩', '🧢', '🎀', '🎃', '🧙', '🙂', '🙈', '👏', '😴', '👋',
-  // §6 grown-up corner: gear gate, vibe faces, the wind-down clock
-  '⚙️', '😌', '😄', '⏰', '🗑️',
+  '👋', // friendly "bye!" cue when a monster floats away / tidy-up
+  // §1 avatars/shop: hats + the shop bag
+  '🛍️', '🎩', '🧢', '🎀', '🎃', '🧙',
+  // §6 grown-up corner: gear gate, vibe faces, the wind-down clock + sleepy face
+  '⚙️', '😌', '😄', '⏰', '🗑️', '😴',
   // §8 world-map journey: the "you are here" flag + diorama poke puffs
   '🚩', '💨', '🌙',
 
@@ -68,16 +73,12 @@ function frame(now) {
       updateProjectiles(sdt)
       removeDead()
       checkWaveCleared()
-      updateAbilities(sdt)  // tick cooldowns + freeze timer
-      updatePickups(sdt)    // bob + fade floating ✨ sparkles
       tickTidyUp(sdt)       // §9 — drive the closure ritual when phase==='tidyup'
     }
     if (!G.paused) updateParticles(dt * G.speed)
-    updateMascot(dt) // mascot reactions tick even while paused/done (real time)
 
     render()
     syncHUD()
-    refreshAbilityTray()
     if (G.selectedTower) positionActionBar(G.selectedTower)
   }
 
@@ -88,7 +89,7 @@ function frame(now) {
 // Boot
 // ===========================================================================
 buildPalette()
-buildAbilityTray()
+wireSettingsButton() // the permanent in-game ⚙️ in the HUD top bar
 showStart()
 initUpdateCheck()
 requestAnimationFrame(frame)

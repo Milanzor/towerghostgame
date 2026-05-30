@@ -5,9 +5,9 @@
 //     (press & hold ~2s, filling ring) so a 4-year-old can't wander in.
 //   • The grown-up panel: difficulty / vibe lock, a soft play-timer, and a
 //     two-step "reset progress" wipe.
-//   • A gentle wind-down when the play-timer runs out: music slows, the field
-//     dims, the mascot yawns, then a calm "Time to rest 😴" screen — with a
-//     parent-approved "5 more minutes" (gated again, never a hard auto-cut).
+//   • A gentle wind-down when the play-timer runs out: music slows and the field
+//     dims, then a calm "Time to rest 😴" screen — with a parent-approved
+//     "5 more minutes" (gated again, never a hard auto-cut).
 //
 // The play timer counts only real PLAY seconds (S.screen==='playing' && !paused)
 // and PERSISTS across the session (entering/leaving rooms, the sandbox, menus).
@@ -16,7 +16,6 @@ import { S, currentProfile, writeSave, currentVibe, resetAllProgress } from './s
 import { sfx, music } from '../audio.js'
 import { twemojify } from '../emoji.js'
 import { ovGrownup, ovRest, hideAllOverlays } from './dom.js'
-import { avatarReact } from '../cosmetics.js'
 
 const HOLD_MS = 2000 // press-and-hold duration to clear the gate
 
@@ -75,7 +74,6 @@ function beginWindDown() {
   timer.windingDown = true
   timer.rampT = 0
   document.body.classList.add('winddown') // CSS dims palette + field
-  avatarReact('sleep') // the mascot starts yawning 😴
 }
 
 // Calm "time to rest" screen — never slams the door. Pauses the game cleanly.
@@ -185,7 +183,16 @@ export function gearButtonHTML() {
 // Wire a freshly-rendered ⚙️ button (called after a screen draws it). Holding it
 // opens the grown-up panel; a quick tap shows a tiny "hold me" nudge.
 export function wireGearButton() {
-  const btn = document.getElementById('gearBtn')
+  wireHoldGate(document.getElementById('gearBtn'))
+}
+
+// The permanent in-game ⚙️ in the HUD top bar (next to the room name). Wired once
+// at boot — same hold-to-open gate, so opening it mid-game is parent-only.
+export function wireSettingsButton() {
+  wireHoldGate(document.getElementById('settingsBtn'))
+}
+
+function wireHoldGate(btn) {
   if (!btn) return
   attachHold(btn, () => showGrownupPanel())
   // a quick tap (no hold) gives a gentle, discoverable hint
@@ -299,7 +306,9 @@ function showGrownupPanel() {
     document.getElementById('gpDone').addEventListener('click', () => {
       sfx.click()
       hideAllOverlays()
-      // Return to wherever the parent opened the panel from.
+      // Return to wherever the parent opened the panel from. Opened mid-game
+      // (via the HUD ⚙️) → just resume the room; otherwise back to the menu.
+      if (prevScreen === 'playing') { S.screen = 'playing'; return }
       import('./screens.js').then(m => prevScreen === 'start' ? m.showStart() : m.showLevelSelect())
     })
   }

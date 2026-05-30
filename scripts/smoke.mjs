@@ -7,12 +7,11 @@
 // The circle:
 //   boot → Play → "Who's playing?" picker (§7) → world-map trail (§8: token,
 //   flag, dioramas) → Shop (§1) → Grown-up corner via the hold gate, set Cozy
-//   (§6) → enter a room → place + upgrade helpers (leveling) → cast a Magic
-//   Button + a draw-to-aim Wave swipe (§2) → clear EVERY wave to a real win
-//   (Cozy guarantees it) → tidy-up ritual + skip (§9) → result/stars/treats →
-//   back to the map with progress advanced → Backyard sandbox: ∞ lives, run a
-//   wave, leave (§5). Enemy powers (§3) and branching lanes (§4) ride along in
-//   the levels that use them.
+//   (§6) → enter a room → place + upgrade helpers (leveling) → clear EVERY wave
+//   to a real win (Cozy guarantees it) → tidy-up ritual + skip (§9) →
+//   result/stars/treats → back to the map with progress advanced → Backyard
+//   sandbox: ∞ lives, run a wave, leave (§5). Enemy powers (§3) and branching
+//   lanes (§4) ride along in the levels that use them.
 //
 // Run:  npm run build && node scripts/smoke.mjs
 import { spawn } from 'node:child_process'
@@ -142,18 +141,6 @@ async function main() {
     cv.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, bubbles: true }))
     return 'ok'
   })()`
-  // a finger swipe across the field (for the draw-to-aim Wave); moves on window.
-  const swipe = (c1, r1, c2, r2) => `(() => {
-    const cv = document.getElementById('canvas'); const b = cv.getBoundingClientRect()
-    const P = (c, r) => ({ x: b.left + b.width * ((c + 0.5) / 15), y: b.top + b.height * ((r + 0.5) / 8) })
-    const a = P(${c1}, ${r1}), z = P(${c2}, ${r2})
-    cv.dispatchEvent(new PointerEvent('pointerdown', { clientX: a.x, clientY: a.y, bubbles: true, pointerId: 7 }))
-    cv.dispatchEvent(new PointerEvent('pointermove', { clientX: (a.x + z.x) / 2, clientY: (a.y + z.y) / 2, bubbles: true, pointerId: 7 }))
-    cv.dispatchEvent(new PointerEvent('pointermove', { clientX: z.x, clientY: z.y, bubbles: true, pointerId: 7 }))
-    cv.dispatchEvent(new PointerEvent('pointerup', { clientX: z.x, clientY: z.y, bubbles: true, pointerId: 7 }))
-    return 'swiped'
-  })()`
-
   // ===================================================================
   // BOOT → PROFILE PICKER (§7)
   // ===================================================================
@@ -217,12 +204,13 @@ async function main() {
   await sleep(250)
 
   // ===================================================================
-  // ENTER A ROOM → LEVELING + ABILITIES (§2)
+  // ENTER A ROOM → LEVELING
   // ===================================================================
-  console.log('\n— play: helpers + magic buttons (§2) —')
+  console.log('\n— play: place + level up helpers —')
   await step('enter first room', `(document.querySelector('.lvl:not(.locked)').click(), 'ok')`)
   await sleep(800)
   check('palette built', (await count('.tower-btn')) >= 1, `${await count('.tower-btn')} helpers`)
+  check('in-game settings ⚙️ present in HUD (next to room name)', await cdp.eval(`!!document.getElementById('settingsBtn')`))
   await step('speed up to 3×', `(document.getElementById('speedBtn').click(), document.getElementById('speedBtn').click(), 'ok')`)
 
   // leveling (headline): place a Candle, upgrade twice
@@ -242,19 +230,6 @@ async function main() {
   // a couple more helpers so the board does something
   await step('place Tornado (pull) @ (1,0)', `(document.querySelector('.tower-btn[data-key="tornado"]').click(), 'ok')`)
   await step('  → tap (1,0)', tapCell(1, 0))
-
-  // §2 abilities: tray + cast Candy Rain (+coins) + arm & swipe a Wave
-  const nAb = await count('.ability-btn')
-  check('ability tray rendered', nAb >= 4, `${nAb} buttons`)
-  const coinsBefore = +(await cdp.eval(`+document.getElementById('coins').textContent`))
-  await act('cast 🍬 Candy Rain', '.ability-btn[data-id="candy"]')
-  await sleep(200)
-  const coinsAfter = +(await cdp.eval(`+document.getElementById('coins').textContent`))
-  check('Candy Rain added coins', coinsAfter > coinsBefore, `${coinsBefore} → ${coinsAfter}`)
-  await act('arm 🌊 Wave', '.ability-btn[data-id="wave"]')
-  await sleep(120)
-  await step('swipe across a lane', swipe(2, 1, 8, 5))
-  await sleep(200)
 
   // ===================================================================
   // CLEAR EVERY WAVE → WIN (Cozy guarantees it) → TIDY-UP (§9)

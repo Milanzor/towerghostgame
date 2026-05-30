@@ -174,14 +174,6 @@ export function newGameFromLevel(level, levelIndex, opts = {}) {
     time: 0,
     shake: 0,
     flash: 0,
-    // --- Magic Buttons (§2 / §2a / §2b) — all per-room, reset each game ---
-    abilityCD: {},        // id -> seconds of cooldown remaining
-    abilityCharges: { sweep: 1, nap: 1, candy: 1, wave: 1, zap: 1 }, // start ready
-    freezeTimer: 0,       // > 0 while Nap freezes monster movement
-    pickups: [],          // floating ✨ sparkles the kid taps to earn charges
-    zapUsed: false,       // Big Zap is once-per-level
-    aiming: null,         // id of the ability awaiting a swipe (Wave), or null
-    aimSwipe: null,       // live { from, to } points while drawing the Wave
     // --- §9 Closure ritual ("tidy up") — only used on a real level win ---
     tidy: null,           // null until the ritual starts; then { t, coins, coins0, ran }
     rewarded: null,       // set once when win rewards are banked (guards double-award)

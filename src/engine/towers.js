@@ -319,6 +319,9 @@ function placeTower(c, r) {
   })
   S.G.occupied.add(`${c},${r}`)
   sfx.place()
+  // Drop the selection after placing so a tap on the field doesn't keep dropping
+  // more helpers — the kid picks a helper again for the next one.
+  S.G.selectedType = null
   refreshPalette()
 }
 

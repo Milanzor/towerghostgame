@@ -7,8 +7,7 @@ import { twemojify, setEmojiText } from '../emoji.js'
 import { ovStart, ovProfiles, ovSelect, ovResult, ovShop, hideAllOverlays, elLevelName, tidyBtn } from './dom.js'
 import { hideActionBar } from './towers.js'
 import { refreshPalette, showPrepBanner, hidePrepBanner } from './ui.js'
-import { resetAbilities } from './abilities.js'
-import { AVATARS, HATS, HAT_ORDER, resetMascot, avatarReact } from '../cosmetics.js'
+import { AVATARS, HATS, HAT_ORDER } from '../cosmetics.js'
 import { gearButtonHTML, wireGearButton } from './grownup.js'
 import { popEffect, floatText } from './effects.js'
 
@@ -94,15 +93,55 @@ function showProfiles() {
   if (addBtn) addBtn.addEventListener('click', () => { sfx.click(); createProfileFlow() })
 }
 
-// No-typing-friendly: a couple of cheery default names, tap to pick boy/girl.
+// A few cheery default names to pre-fill the box (the kid can type their own).
 const DEFAULT_NAMES = ['Lily', 'Max', 'Zoe', 'Leo', 'Ruby', 'Finn']
+
+// New-player flow: pick a face, then type a name. Lives in the profiles overlay.
 function createProfileFlow() {
+  S.screen = 'profiles'
+  hideActionBar()
   const used = listProfiles().map(p => p.name)
-  const name = DEFAULT_NAMES.find(n => !used.includes(n)) || ('Player ' + (listProfiles().length + 1))
-  const avatar = listProfiles().length % 2 === 0 ? 'girl' : 'boy'
-  const id = addProfile({ name, avatar })
-  if (id) setActiveProfile(id)
-  showProfiles()
+  const suggested = DEFAULT_NAMES.find(n => !used.includes(n)) || ''
+  let chosen = 'girl'
+  const avatarChoices = Object.entries(AVATARS).map(([id, a]) => `
+    <button class="avatar-pick ${chosen === id ? 'on' : ''}" data-av="${id}" aria-label="${a.name}">
+      <span class="ap-face">${a.emoji}</span>
+    </button>`).join('')
+  ovProfiles.innerHTML = `
+    <div class="card">
+      <h1>New player</h1>
+      <p>Pick a face, then type your name! 💜</p>
+      <div class="avatar-picks">${avatarChoices}</div>
+      <input class="name-input" id="nameInput" type="text" maxlength="12"
+             placeholder="Your name" value="${suggested}" autocomplete="off"
+             autocapitalize="words" spellcheck="false" />
+      <div>
+        <button class="big-btn green" id="createBtn">✅ Let's play!</button>
+        <button class="big-btn" id="createBack">↩ Back</button>
+      </div>
+    </div>`
+  twemojify(ovProfiles)
+  hideAllOverlays()
+  ovProfiles.classList.remove('hidden')
+  const input = document.getElementById('nameInput')
+  // Toggle the chosen face without re-rendering (so the typed name is kept).
+  for (const el of ovProfiles.querySelectorAll('[data-av]')) {
+    el.addEventListener('click', () => {
+      sfx.click()
+      chosen = el.dataset.av
+      for (const b of ovProfiles.querySelectorAll('[data-av]')) b.classList.toggle('on', b === el)
+    })
+  }
+  const create = () => {
+    const name = (input.value || '').trim() || suggested || 'Player'
+    const id = addProfile({ name, avatar: chosen })
+    if (id) setActiveProfile(id)
+    showLevelSelect()
+  }
+  document.getElementById('createBtn').addEventListener('click', () => { sfx.click(); create() })
+  document.getElementById('createBack').addEventListener('click', () => { sfx.click(); showProfiles() })
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') create() })
+  setTimeout(() => { try { input.focus() } catch { /* ignore */ } }, 60)
 }
 
 // §8 — the avatar token (face + equipped hat layered) that travels the trail.
@@ -270,8 +309,6 @@ function startLevel(i) {
   setEmojiText(document.getElementById('speedBtn'), '⏩')
   showPrepBanner()
   refreshPalette()
-  resetAbilities() // rebuild the magic-button tray, clear any armed aim
-  resetMascot() // avatar back to idle for the new room
   music.play(i) // each room has its own tune
 }
 
@@ -287,17 +324,14 @@ function startSandbox() {
   setEmojiText(document.getElementById('speedBtn'), '⏩')
   showPrepBanner()
   refreshPalette()
-  resetAbilities()
-  resetMascot()
   music.play(0) // a cheery tune for the garden
 }
 
-// The gentle off-ramp: wave goodbye, then drift back to the map — no game-over.
+// The gentle off-ramp: drift back to the map — no game-over.
 function leaveSandbox() {
-  avatarReact('wave') // mascot waves goodbye 👋
   music.stop()
   hidePrepBanner()
-  setTimeout(() => showLevelSelect(), 650) // let the wave play before we leave
+  showLevelSelect()
 }
 
 function computeStars() {
@@ -336,7 +370,6 @@ function beginTidyUp() {
   })
   lastSwooshAt = -1
   music.stop() // gentle hush; the ritual has its own little cues
-  avatarReact('clap') // mascot claps/stretches as the tidy-up starts
   showTidyButton()
 }
 
@@ -356,7 +389,6 @@ function onTidyTap() {
     G.tidy.ran = true
     setEmojiText(tidyBtn, '⏩ Skip')
     tidyBtn.classList.add('skip')
-    avatarReact('clap')
   } else {
     // Second tap → fast-forward straight to the result.
     finishTidyUp()
@@ -397,7 +429,6 @@ function tickTidyUp(dt) {
   if (!td.tucked && td.t >= TIDY_DUR - 1.1) {
     td.tucked = true
     sfx.tuck()
-    avatarReact('clap')
   }
   // done → reveal the stars
   if (td.t >= TIDY_DUR) finishTidyUp()
@@ -450,7 +481,6 @@ function win(leftoverCoins) {
   // swoosh drained the HUD). Fall back to the live total if called directly.
   const { stars, earned } = applyWinRewards(leftoverCoins)
   const i = S.G.levelIndex
-  avatarReact('cheer') // mascot cheers + jumps on the win
   music.stop()
   sfx.win()
   hidePrepBanner()

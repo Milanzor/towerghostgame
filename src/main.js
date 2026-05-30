@@ -5,6 +5,16 @@ import {
 } from './content.js'
 import { sfx, music, setMuted, isMuted } from './audio.js'
 import { initUpdateCheck } from './update-check.js'
+import { preloadEmoji, drawEmoji, twemojify, setEmojiText } from './emoji.js'
+
+// Preload every emoji we draw/show so they render identically on all devices
+// (some tablets don't draw colour emoji on a canvas, or even in the DOM).
+preloadEmoji([
+  ...Object.values(TOWERS).map(t => t.emoji),
+  ...Object.values(ENEMIES).map(e => e.emoji),
+  '⭐', '👑', '❄️', '💥', '🏚️', '🛡️', '🔥', '🫧', '🪙', '💜', '🌊',
+  '🔊', '🔇', '⏩', '🏠', '✨', '👻', '🎉', '🗑️', '⬆️', '🐷',
+])
 
 // ===========================================================================
 // Save / progress
@@ -67,6 +77,9 @@ const elLives = document.getElementById('lives')
 const elWave = document.getElementById('wave')
 const elLevelName = document.getElementById('levelName')
 
+// Swap the static HUD/button emoji to images so they show everywhere.
+twemojify(document.querySelector('.hud'))
+
 // Canvas resolution (with device-pixel-ratio for crispness)
 function sizeCanvas() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
@@ -81,8 +94,9 @@ window.addEventListener('resize', sizeCanvas)
 // Canvas needs an explicit colour-emoji font stack — the generic `serif`
 // family doesn't resolve emoji on iOS/Safari (and some others), which made
 // placed helpers/monsters show only their coloured platform, no icon.
-const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji","Twemoji Mozilla","EmojiOne Color","Android Emoji",sans-serif'
-const ef = (px) => `${px}px ${EMOJI_FONT}`
+// Fallback font for the rare text label that still uses fillText (floating
+// combat text). Tower/monster icons are drawn as Twemoji images, see emoji.js.
+const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji","Twemoji Mozilla",sans-serif'
 
 // ===========================================================================
 // Overlays
@@ -160,6 +174,7 @@ function buildPalette() {
     attachDrag(b, key)
     towerStrip.appendChild(b)
   }
+  twemojify(towerStrip)
   goBtn = document.getElementById('goBtn')
   goBtn.addEventListener('click', onGo)
 
@@ -235,7 +250,7 @@ function startDrag(key, clientX, clientY) {
   const def = TOWERS[key]
   dragGhostEl = document.createElement('div')
   dragGhostEl.className = 'drag-ghost'
-  dragGhostEl.textContent = def.emoji
+  setEmojiText(dragGhostEl, def.emoji)
   document.body.appendChild(dragGhostEl)
   moveDragGhost(clientX, clientY)
 }
@@ -916,6 +931,7 @@ function showActionBar(t) {
       : `<button class="up" disabled>⭐ Max</button>`}
     <button class="sell" data-act="sell">🗑️ Sell 🪙${refund}</button>
   `
+  twemojify(actionBar)
   actionBar.classList.remove('hidden')
   for (const b of actionBar.querySelectorAll('button')) {
     b.addEventListener('click', (e) => {
@@ -962,14 +978,14 @@ function sellTower(t) {
 // ===========================================================================
 document.getElementById('muteBtn').addEventListener('click', (e) => {
   setMuted(!isMuted())
-  e.currentTarget.textContent = isMuted() ? '🔇' : '🔊'
+  setEmojiText(e.currentTarget, isMuted() ? '🔇' : '🔊')
 })
 const SPEEDS = [1, 2, 3]
 document.getElementById('speedBtn').addEventListener('click', (e) => {
   if (!G) return
   const i = (SPEEDS.indexOf(G.speed) + 1) % SPEEDS.length
   G.speed = SPEEDS[i]
-  e.currentTarget.textContent = G.speed === 1 ? '⏩' : `${G.speed}×`
+  setEmojiText(e.currentTarget, G.speed === 1 ? '⏩' : `${G.speed}×`)
 })
 document.getElementById('menuBtn').addEventListener('click', () => {
   sfx.click()
@@ -987,6 +1003,7 @@ function showPrepBanner() {
         : `🛡️ Place your helpers, then press <b>Start!</b>`)
     : `✅ Wave ${G.waveIndex} cleared! Build more, then press <b>Next Wave!</b>`
   prepBanner.classList.toggle('boss', !!G.level.isBoss && isFirst)
+  twemojify(prepBanner)
   prepBanner.classList.remove('hidden')
 }
 function hidePrepBanner() {
@@ -1009,6 +1026,7 @@ function showStart() {
       <button class="big-btn green" id="playBtn">▶ Play</button>
       <div class="hint">Tip: <b>drag</b> a helper from the bottom onto the floor — or tap one, then tap the floor.</div>
     </div>`
+  twemojify(ovStart)
   hideAllOverlays()
   ovStart.classList.remove('hidden')
   document.getElementById('playBtn').addEventListener('click', () => {
@@ -1057,6 +1075,7 @@ function showLevelSelect() {
       ${sections}
       <div class="hint">Beat a room to unlock the next! Each world ends with a 👑 BOSS.</div>
     </div>`
+  twemojify(ovSelect)
   hideAllOverlays()
   ovSelect.classList.remove('hidden')
   for (const el of ovSelect.querySelectorAll('.lvl')) {
@@ -1071,8 +1090,8 @@ function startLevel(i) {
   screen = 'playing'
   hideAllOverlays()
   hideActionBar()
-  elLevelName.textContent = `${LEVELS[i].areaEmoji} ${LEVELS[i].name}`
-  document.getElementById('speedBtn').textContent = '⏩'
+  setEmojiText(elLevelName, `${LEVELS[i].areaEmoji} ${LEVELS[i].name}`)
+  setEmojiText(document.getElementById('speedBtn'), '⏩')
   showPrepBanner()
   refreshPalette()
   music.play(i) // each room has its own tune
@@ -1112,6 +1131,7 @@ function win() {
         <button class="big-btn" id="mapBtn">🗺️ Rooms</button>
       </div>
     </div>`
+  twemojify(ovResult)
   ovResult.classList.remove('hidden')
   const next = document.getElementById('nextBtn')
   if (next) next.addEventListener('click', () => { sfx.click(); startLevel(i + 1) })
@@ -1135,6 +1155,7 @@ function lose() {
         <button class="big-btn" id="mapBtn2">🗺️ Rooms</button>
       </div>
     </div>`
+  twemojify(ovResult)
   ovResult.classList.remove('hidden')
   document.getElementById('retryBtn').addEventListener('click', () => { sfx.click(); startLevel(i) })
   document.getElementById('mapBtn2').addEventListener('click', () => { sfx.click(); showLevelSelect() })
@@ -1149,15 +1170,21 @@ function syncHUD() {
   const shown = Math.min(G.waveIndex + 1, G.waveCount)
   elWave.textContent = `${shown}/${G.waveCount}`
   if (goBtn) {
+    let label
     if (G.phase === 'prep') {
       goBtn.disabled = false
-      goBtn.textContent = G.started ? '▶ Next Wave!' : '▶ Start!'
+      label = G.started ? '▶ Next Wave!' : '▶ Start!'
     } else if (G.phase === 'done') {
       goBtn.disabled = true
-      goBtn.textContent = '🎉'
+      label = '🎉'
     } else {
       goBtn.disabled = true
-      goBtn.textContent = '👻 Fighting…'
+      label = '👻 Fighting…'
+    }
+    // only rebuild (and re-twemojify) when the label actually changes
+    if (goBtn._label !== label) {
+      goBtn._label = label
+      setEmojiText(goBtn, label)
     }
   }
 }
@@ -1277,9 +1304,7 @@ function drawDoor(x, y) {
   roundRect(-15, -24, 30, 48, 6); ctx.fill()
   ctx.fillStyle = '#ffd34d'
   ctx.beginPath(); ctx.arc(8, 4, 3, 0, Math.PI * 2); ctx.fill()
-  ctx.font = ef(20)
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText('🏚️', 0, -46)
+  drawEmoji(ctx, '🏚️', 0, -46, 22)
   ctx.restore()
 }
 
@@ -1324,20 +1349,16 @@ function drawTowers() {
     ctx.lineWidth = 3
     ctx.beginPath(); ctx.arc(t.cx, t.cy, 24, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
     // emoji
-    ctx.font = ef(30)
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText(t.def.emoji, t.cx, t.cy + 1)
+    drawEmoji(ctx, t.def.emoji, t.cx, t.cy + 1, 32)
     // level pips
     if (t.level >= 2) {
-      ctx.font = ef(14)
-      ctx.fillText('⭐', t.cx + 16, t.cy - 16)
+      drawEmoji(ctx, '⭐', t.cx + 16, t.cy - 16, 15)
     }
     // hexed / frozen by a boss
     if (t.disabledTimer > 0) {
       ctx.fillStyle = 'rgba(150,220,255,0.5)'
       ctx.beginPath(); ctx.arc(t.cx, t.cy, 24, 0, Math.PI * 2); ctx.fill()
-      ctx.font = ef(18)
-      ctx.fillText('❄️', t.cx, t.cy)
+      drawEmoji(ctx, '❄️', t.cx, t.cy, 20)
     }
     // active suck beam
     if (t.beamTo && !t.beamTo.dead) {
@@ -1372,9 +1393,7 @@ function drawProjectiles() {
     ctx.strokeStyle = 'rgba(0,0,0,0.3)'
     ctx.lineWidth = 2
     ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
-    ctx.font = ef(14)
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('💥', p.x, p.y)
+    drawEmoji(ctx, '💥', p.x, p.y, 16)
   }
 }
 
@@ -1420,10 +1439,7 @@ function drawGhost(e) {
 
   // crown for king
   if (def.crown) {
-    ctx.fillStyle = '#ffd34d'
-    ctx.font = ef(r)
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('👑', cx, cy - r * 0.95)
+    drawEmoji(ctx, '👑', cx, cy - r * 0.95, r)
   }
 
   // eyes (look toward movement)
@@ -1478,9 +1494,7 @@ function drawCritter(e) {
   }
 
   // emoji face
-  ctx.font = ef(Math.round(r * 1.5))
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText(def.emoji, cx, cy + 1)
+  drawEmoji(ctx, def.emoji, cx, cy + 1, Math.round(r * 1.6))
 
   drawStatus(e, cx, cy, r)
   drawHpBar(e, cx, cy, r)
@@ -1502,11 +1516,9 @@ function drawStatus(e, cx, cy, r) {
   }
   let bx = cx - r * 0.7
   const by = cy - r - 16
-  ctx.font = ef(13)
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  if (e.shield > 0) { ctx.fillText('🛡️', bx, by); bx += 14 }
-  if (e.burnTimer > 0) { ctx.fillText('🔥', bx, by); bx += 14 }
-  if (e.poisonTimer > 0) { ctx.fillText('🫧', bx, by); bx += 14 }
+  if (e.shield > 0) { drawEmoji(ctx, '🛡️', bx, by, 14); bx += 14 }
+  if (e.burnTimer > 0) { drawEmoji(ctx, '🔥', bx, by, 14); bx += 14 }
+  if (e.poisonTimer > 0) { drawEmoji(ctx, '🫧', bx, by, 14); bx += 14 }
 }
 
 function drawHpBar(e, cx, cy, r) {
@@ -1579,9 +1591,7 @@ function drawPlacementPreview() {
   roundRect(c * TILE + 4, r * TILE + 4, TILE - 8, TILE - 8, 10); ctx.fill()
   // ghost preview of tower
   ctx.globalAlpha = 0.75
-  ctx.font = ef(30)
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-  ctx.fillText(def.emoji, cx, cy)
+  drawEmoji(ctx, def.emoji, cx, cy, 32)
   ctx.globalAlpha = 1
 }
 

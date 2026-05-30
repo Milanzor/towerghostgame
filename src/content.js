@@ -200,16 +200,48 @@ function buildPath(cells) {
   return { waypoints, pathTiles }
 }
 
-// A few reusable path shapes for the rooms.
+// Path shapes for the rooms — each AREA gets its own five, so no two worlds
+// play the same map. Each segment is axis-aligned (only one of col/row changes
+// between waypoints); paths enter at the left (col -1) and exit at the right
+// (col 15). The shapes are tuned to each world's feel:
+//   M* Mansion  – twisty haunted halls       I* Caverns – long sweeping ice slides
+//   J* Dungeon  – tight comb/maze corridors   K* Volcano – bold straight lava bridges
+//   L* Void     – wide looping cosmic orbits
 const PATHS = {
-  A: [[-1, 3], [3, 3], [3, 1], [8, 1], [8, 6], [12, 6], [15, 6]],
-  B: [[-1, 1], [4, 1], [4, 5], [9, 5], [9, 2], [13, 2], [13, 6], [15, 6]],
-  C: [[-1, 4], [2, 4], [2, 1], [6, 1], [6, 6], [10, 6], [10, 2], [15, 2]],
-  D: [[-1, 6], [3, 6], [3, 2], [7, 2], [7, 6], [11, 6], [11, 1], [14, 1], [14, 4], [15, 4]],
-  E: [[-1, 3], [2, 3], [2, 6], [6, 6], [6, 2], [10, 2], [10, 6], [13, 6], [13, 3], [15, 3]],
-  F: [[-1, 2], [3, 2], [3, 6], [7, 6], [7, 1], [11, 1], [11, 5], [15, 5]],
-  G: [[-1, 1], [5, 1], [5, 4], [1, 4], [1, 7], [9, 7], [9, 3], [13, 3], [13, 6], [15, 6]],
-  H: [[-1, 4], [3, 4], [3, 1], [6, 1], [6, 6], [9, 6], [9, 1], [12, 1], [12, 5], [15, 5]],
+  // Haunted Mansion — winding corridors
+  M1: [[-1, 3], [3, 3], [3, 1], [8, 1], [8, 6], [12, 6], [15, 6]],
+  M2: [[-1, 1], [4, 1], [4, 5], [9, 5], [9, 2], [13, 2], [13, 6], [15, 6]],
+  M3: [[-1, 4], [2, 4], [2, 1], [6, 1], [6, 6], [10, 6], [10, 2], [15, 2]],
+  M4: [[-1, 6], [3, 6], [3, 2], [7, 2], [7, 6], [11, 6], [11, 1], [14, 1], [14, 4], [15, 4]],
+  M5: [[-1, 3], [2, 3], [2, 6], [6, 6], [6, 2], [10, 2], [10, 6], [13, 6], [13, 3], [15, 3]],
+
+  // Frozen Caverns — big sweeping switchbacks
+  I1: [[-1, 2], [11, 2], [11, 5], [3, 5], [3, 7], [15, 7]],
+  I2: [[-1, 5], [13, 5], [13, 1], [3, 1], [3, 3], [15, 3]],
+  I3: [[-1, 7], [6, 7], [6, 2], [11, 2], [11, 6], [15, 6]],
+  I4: [[-1, 1], [3, 1], [3, 6], [8, 6], [8, 1], [13, 1], [13, 4], [15, 4]],
+  I5: [[-1, 4], [2, 4], [2, 7], [7, 7], [7, 1], [12, 1], [12, 5], [15, 5]],
+
+  // Goblin Dungeon — tight comb mazes
+  J1: [[-1, 1], [2, 1], [2, 4], [5, 4], [5, 1], [8, 1], [8, 4], [11, 4], [11, 1], [14, 1], [14, 5], [15, 5]],
+  J2: [[-1, 6], [2, 6], [2, 3], [5, 3], [5, 6], [8, 6], [8, 3], [11, 3], [11, 6], [14, 6], [14, 2], [15, 2]],
+  J3: [[-1, 4], [3, 4], [3, 1], [6, 1], [6, 6], [9, 6], [9, 1], [12, 1], [12, 5], [15, 5]],
+  J4: [[-1, 2], [4, 2], [4, 5], [1, 5], [1, 7], [7, 7], [7, 2], [10, 2], [10, 6], [13, 6], [13, 3], [15, 3]],
+  J5: [[-1, 5], [2, 5], [2, 2], [5, 2], [5, 6], [8, 6], [8, 2], [12, 2], [12, 6], [15, 6]],
+
+  // Volcano Keep — long straight bridges
+  K1: [[-1, 3], [5, 3], [5, 6], [10, 6], [10, 2], [15, 2]],
+  K2: [[-1, 6], [6, 6], [6, 1], [15, 1]],
+  K3: [[-1, 2], [8, 2], [8, 6], [15, 6]],
+  K4: [[-1, 5], [4, 5], [4, 1], [11, 1], [11, 6], [15, 6]],
+  K5: [[-1, 1], [7, 1], [7, 5], [13, 5], [13, 2], [15, 2]],
+
+  // Cosmic Void — wide looping orbits
+  L1: [[-1, 4], [2, 4], [2, 1], [13, 1], [13, 6], [4, 6], [4, 4], [15, 4]],
+  L2: [[-1, 1], [12, 1], [12, 4], [3, 4], [3, 7], [15, 7]],
+  L3: [[-1, 3], [10, 3], [10, 7], [5, 7], [5, 5], [13, 5], [13, 2], [15, 2]],
+  L4: [[-1, 7], [2, 7], [2, 3], [6, 3], [6, 7], [10, 7], [10, 3], [14, 3], [14, 6], [15, 6]],
+  L5: [[-1, 2], [5, 2], [5, 6], [9, 6], [9, 1], [13, 1], [13, 5], [15, 5]],
 }
 
 // ===========================================================================
@@ -219,36 +251,37 @@ const PATHS = {
 const AREA_DEFS = [
   {
     name: 'Haunted Mansion', emoji: '🏚️', bg: '#3a2b5e', floor: '#4a3a72',
+    door: '🚪', accent: '#9a6bff', decor: ['🕸️', '🖼️', '🪦', '🕯️', '🦇'],
     rooms: [
-      { name: 'Foggy Foyer', path: 'A', startCoins: 150, lives: 15, hpScale: 1.0, rewardScale: 1.0,
+      { name: 'Foggy Foyer', path: 'M1', startCoins: 150, lives: 15, hpScale: 1.0, rewardScale: 1.0,
         waves: [
           [{ type: 'boo', count: 6, spacing: 1.1 }],
           [{ type: 'boo', count: 8, spacing: 0.9 }],
           [{ type: 'greenie', count: 8, spacing: 0.6 }, { type: 'boo', count: 4, spacing: 1.0 }],
           [{ type: 'candy', count: 10, spacing: 0.5 }, { type: 'boo', count: 6, spacing: 0.8 }],
         ] },
-      { name: 'Dusty Hall', path: 'B', startCoins: 165, lives: 15, hpScale: 1.12, rewardScale: 1.04,
+      { name: 'Dusty Hall', path: 'M2', startCoins: 165, lives: 15, hpScale: 1.12, rewardScale: 1.04,
         waves: [
           [{ type: 'boo', count: 10, spacing: 0.8 }],
           [{ type: 'greenie', count: 12, spacing: 0.5 }],
           [{ type: 'candy', count: 12, spacing: 0.45 }, { type: 'boo', count: 6, spacing: 0.8 }],
           [{ type: 'bat', count: 8, spacing: 0.6 }, { type: 'slammer', count: 3, spacing: 1.4 }],
         ] },
-      { name: 'Creaky Stairs', path: 'C', startCoins: 175, lives: 14, hpScale: 1.25, rewardScale: 1.07,
+      { name: 'Creaky Stairs', path: 'M3', startCoins: 175, lives: 14, hpScale: 1.25, rewardScale: 1.07,
         waves: [
           [{ type: 'greenie', count: 14, spacing: 0.45 }],
           [{ type: 'flyer', count: 8, spacing: 0.7 }, { type: 'bat', count: 8, spacing: 0.5 }],
           [{ type: 'slammer', count: 4, spacing: 1.3 }, { type: 'candy', count: 12, spacing: 0.4 }],
           [{ type: 'bat', count: 12, spacing: 0.4 }, { type: 'flyer', count: 6, spacing: 0.6 }],
         ] },
-      { name: 'Portrait Gallery', path: 'D', startCoins: 190, lives: 14, hpScale: 1.4, rewardScale: 1.1,
+      { name: 'Portrait Gallery', path: 'M4', startCoins: 190, lives: 14, hpScale: 1.4, rewardScale: 1.1,
         waves: [
           [{ type: 'flyer', count: 12, spacing: 0.5 }],
           [{ type: 'slammer', count: 5, spacing: 1.1 }, { type: 'greenie', count: 12, spacing: 0.4 }],
           [{ type: 'bat', count: 14, spacing: 0.35 }, { type: 'candy', count: 10, spacing: 0.4 }],
           [{ type: 'slammer', count: 7, spacing: 0.9 }, { type: 'flyer', count: 8, spacing: 0.5 }],
         ] },
-      { name: "King Boo's Throne", path: 'E', boss: true, startCoins: 230, lives: 14, hpScale: 1.5, rewardScale: 1.15,
+      { name: "King Boo's Throne", path: 'M5', boss: true, startCoins: 230, lives: 14, hpScale: 1.5, rewardScale: 1.15,
         waves: [
           [{ type: 'boo', count: 14, spacing: 0.45 }, { type: 'greenie', count: 10, spacing: 0.4 }],
           [{ type: 'slammer', count: 6, spacing: 1.0 }, { type: 'flyer', count: 10, spacing: 0.5 }],
@@ -259,15 +292,16 @@ const AREA_DEFS = [
   },
   {
     name: 'Frozen Caverns', emoji: '🧊', bg: '#1f3550', floor: '#2e5078',
+    door: '🧊', accent: '#7fe0ff', decor: ['❄️', '🧊', '💎', '🦴', '⛄'],
     rooms: [
-      { name: 'Icy Entrance', path: 'F', startCoins: 200, lives: 14, hpScale: 1.6, rewardScale: 1.16,
+      { name: 'Icy Entrance', path: 'I1', startCoins: 200, lives: 14, hpScale: 1.6, rewardScale: 1.16,
         waves: [
           [{ type: 'blob', count: 10, spacing: 0.7 }],
           [{ type: 'bat', count: 14, spacing: 0.4 }, { type: 'eyeball', count: 8, spacing: 0.5 }],
           [{ type: 'zombie', count: 6, spacing: 1.0 }, { type: 'blob', count: 8, spacing: 0.6 }],
           [{ type: 'spider', count: 8, spacing: 0.6 }, { type: 'eyeball', count: 12, spacing: 0.35 }],
         ] },
-      { name: 'Frosty Tunnels', path: 'G', startCoins: 215, lives: 13, hpScale: 1.75, rewardScale: 1.2,
+      { name: 'Frosty Tunnels', path: 'I2', startCoins: 215, lives: 13, hpScale: 1.75, rewardScale: 1.2,
         waves: [
           [{ type: 'eyeball', count: 16, spacing: 0.35 }],
           [{ type: 'alien', count: 8, spacing: 0.8 }, { type: 'bat', count: 12, spacing: 0.4 }],

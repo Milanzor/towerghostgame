@@ -215,12 +215,19 @@ function onGo() {
   if (G && G.phase === 'prep') startWave()
 }
 
-// Space (or Enter) is a shortcut for the Start / Next Wave button.
+// Keyboard shortcuts while playing.
 document.addEventListener('keydown', (e) => {
-  if (e.code !== 'Space' && e.key !== 'Enter') return
-  if (screen !== 'playing' || !G || G.phase !== 'prep') return
-  e.preventDefault()
-  onGo()
+  if (screen !== 'playing' || !G) return
+  // Space / Enter → Start or Next Wave (button is only live during prep).
+  if (e.code === 'Space' || e.key === 'Enter') {
+    if (G.phase !== 'prep') return
+    e.preventDefault()
+    onGo()
+  // F → cycle fast-forward speed (same as the ⏩ button).
+  } else if (e.key === 'f' || e.key === 'F') {
+    e.preventDefault()
+    document.getElementById('speedBtn').click()
+  }
 })
 
 // ===========================================================================

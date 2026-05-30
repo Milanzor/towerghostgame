@@ -1,7 +1,18 @@
-// Headless smoke test for Ghost Catchers. No deps: serves the built docs/ via
-// `vite preview`, drives system chromium over the DevTools protocol with Node's
-// global WebSocket, plays through Start → pick room → place a helper → start a
-// wave, and fails if any console.error or uncaught exception fires.
+// Headless "full circle" smoke test for Ghost Catchers. No deps: serves the
+// built docs/ via `vite preview`, drives system chromium over the DevTools
+// protocol with Node's global WebSocket, and plays a COMPLETE loop through every
+// major system, failing if any console.error / uncaught exception fires OR any
+// in-test assertion (check) fails.
+//
+// The circle:
+//   boot → Play → "Who's playing?" picker (§7) → world-map trail (§8: token,
+//   flag, dioramas) → Shop (§1) → Grown-up corner via the hold gate, set Cozy
+//   (§6) → enter a room → place + upgrade helpers (leveling) → cast a Magic
+//   Button + a draw-to-aim Wave swipe (§2) → clear EVERY wave to a real win
+//   (Cozy guarantees it) → tidy-up ritual + skip (§9) → result/stars/treats →
+//   back to the map with progress advanced → Backyard sandbox: ∞ lives, run a
+//   wave, leave (§5). Enemy powers (§3) and branching lanes (§4) ride along in
+//   the levels that use them.
 //
 // Run:  npm run build && node scripts/smoke.mjs
 import { spawn } from 'node:child_process'
@@ -80,6 +91,7 @@ async function main() {
 
   // 3) attach + collect problems
   const errors = []
+  const failures = []
   const cdp = await CDP.attach(ver.webSocketDebuggerUrl)
   cdp.on((m) => {
     if (m.method === 'Runtime.exceptionThrown') {
@@ -96,7 +108,12 @@ async function main() {
   await cdp.send('Log.enable')
   await cdp.send('Page.enable')
 
-  // 4) load the game
+  // 4) load the game — clear any persisted save first so the run is idempotent
+  // (fixed --user-data-dir keeps localStorage between runs; wipe it for a fresh
+  // two-profile / unlocked:0 / "Just Right" save every time).
+  await cdp.send('Page.navigate', { url: URL })
+  await sleep(600)
+  await cdp.eval(`(localStorage.clear(), 'cleared')`)
   await cdp.send('Page.navigate', { url: URL })
   await sleep(1500)
 
@@ -105,68 +122,221 @@ async function main() {
     console.log(`  • ${label}: ${JSON.stringify(v)}`)
     return v
   }
+  // A hard assertion: logs ✓/✗ and records a failure (fails the whole run).
+  const check = (label, cond, detail = '') => {
+    console.log(`  ${cond ? '✓' : '✗'} ${label}${detail ? ` — ${detail}` : ''}`)
+    if (!cond) failures.push(label + (detail ? ` — ${detail}` : ''))
+    return cond
+  }
+  const click = (sel) => cdp.eval(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return 'missing'; e.click(); return 'ok' })()`)
+  // click + log (click() already runs the eval, so it can't be wrapped in step())
+  const act = async (label, sel) => { const r = await click(sel); console.log(`  • ${label}: ${JSON.stringify(r)}`); return r }
+  const visible = (id) => cdp.eval(`(() => { const e = document.getElementById(${JSON.stringify(id)}); return !!(e && !e.classList.contains('hidden')) })()`)
+  const count = (sel) => cdp.eval(`document.querySelectorAll(${JSON.stringify(sel)}).length`)
+  const txt = (sel) => cdp.eval(`(document.querySelector(${JSON.stringify(sel)})?.textContent || '').trim()`)
 
-  // boot reached the Start overlay?
-  await step('Play button present', `!!document.getElementById('playBtn')`)
-  await step('click Play', `(document.getElementById('playBtn').click(), 'ok')`)
-  await sleep(400)
-  // "Who's playing?" picker now sits between Play and level-select — tolerate
-  // its presence (pick the first kid), no-op if it's absent.
-  await step('pick profile (if shown)', `(() => {
-    const c = document.querySelector('.profile-card[data-id]')
-    if (c) { c.click(); return 'picked' }
-    return 'no-picker'
-  })()`)
-  await sleep(400)
-  await step('room tiles shown', `document.querySelectorAll('.lvl').length`)
-  await step('enter first room', `(document.querySelector('.lvl:not(.locked)').click(), 'ok')`)
-  await sleep(800)
-  await step('palette built', `document.querySelectorAll('.tower-btn').length`)
-  // crank speed so a wave resolves fast
-  await step('speed up', `(document.getElementById('speedBtn').click(), document.getElementById('speedBtn').click(), 'ok')`)
-
-  // helper to tap a grid cell (15×8) at its centre
+  // tap a grid cell (15×8) at its centre
   const tapCell = (c, row) => `(() => {
     const cv = document.getElementById('canvas'); const r = cv.getBoundingClientRect()
     const x = r.left + r.width * ((${c} + 0.5) / 15), y = r.top + r.height * ((${row} + 0.5) / 8)
     cv.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, bubbles: true }))
     return 'ok'
   })()`
+  // a finger swipe across the field (for the draw-to-aim Wave); moves on window.
+  const swipe = (c1, r1, c2, r2) => `(() => {
+    const cv = document.getElementById('canvas'); const b = cv.getBoundingClientRect()
+    const P = (c, r) => ({ x: b.left + b.width * ((c + 0.5) / 15), y: b.top + b.height * ((r + 0.5) / 8) })
+    const a = P(${c1}, ${r1}), z = P(${c2}, ${r2})
+    cv.dispatchEvent(new PointerEvent('pointerdown', { clientX: a.x, clientY: a.y, bubbles: true, pointerId: 7 }))
+    cv.dispatchEvent(new PointerEvent('pointermove', { clientX: (a.x + z.x) / 2, clientY: (a.y + z.y) / 2, bubbles: true, pointerId: 7 }))
+    cv.dispatchEvent(new PointerEvent('pointermove', { clientX: z.x, clientY: z.y, bubbles: true, pointerId: 7 }))
+    cv.dispatchEvent(new PointerEvent('pointerup', { clientX: z.x, clientY: z.y, bubbles: true, pointerId: 7 }))
+    return 'swiped'
+  })()`
 
-  // --- leveling up (the headline feature): place a Candle, then upgrade twice ---
+  // ===================================================================
+  // BOOT → PROFILE PICKER (§7)
+  // ===================================================================
+  console.log('\n— boot & profiles (§7) —')
+  check('Play button present', await cdp.eval(`!!document.getElementById('playBtn')`))
+  await step('click Play', `(document.getElementById('playBtn').click(), 'ok')`)
+  await sleep(400)
+  const nCards = await count('.profile-card[data-id]')
+  check('profile picker shown (2 seeded kids)', nCards >= 2, `${nCards} cards`)
+  await step('pick first kid', `(document.querySelector('.profile-card[data-id]').click(), 'ok')`)
+  await sleep(400)
+
+  // ===================================================================
+  // WORLD-MAP TRAIL (§8)
+  // ===================================================================
+  console.log('\n— world map journey (§8) —')
+  const tiles = await count('.lvl')
+  check('25 room tiles on the trail', tiles === 25, `${tiles} tiles`)
+  check('avatar token present', await cdp.eval(`!!document.getElementById('mapToken')`))
+  check('"you are here" flag present', await cdp.eval(`!!document.getElementById('mapFlag')`))
+  const dioramas = await count('.diorama')
+  check('pokeable area dioramas present', dioramas >= 1, `${dioramas} dioramas`)
+  if (dioramas) {
+    await step('poke a diorama', `(document.querySelector('.diorama').click(), 'ok')`)
+    await sleep(150)
+    check('poke did NOT start a level (still on map)', await visible('ovSelect') && (await count('.lvl')) === 25)
+  }
+
+  // ===================================================================
+  // SHOP (§1)
+  // ===================================================================
+  console.log('\n— shop (§1) —')
+  await act('open Shop', '#shopChip')
+  await sleep(300)
+  check('shop overlay open', await visible('ovShop'))
+  const hats = await count('.hat-tile')
+  check('shop shows a hat grid', hats >= 3, `${hats} hats`)
+  check('treats wallet shown', (await count('.shop-wallet')) >= 1)
+  check('an unaffordable hat is greyed (.cant)', (await count('[data-buy].cant')) >= 1)
+  await act('close Shop', '#shopDone')
+  await sleep(250)
+  check('back on the map', await visible('ovSelect'))
+
+  // ===================================================================
+  // GROWN-UP CORNER (§6) — drive the hold gate, switch to Cozy (no-fail).
+  // Cozy makes the upcoming win deterministic (lives never drop, every wave
+  // clears as monsters are caught or float away).
+  // ===================================================================
+  console.log('\n— grown-up corner / hold gate (§6) —')
+  check('gear gate present', await cdp.eval(`!!document.getElementById('gearBtn')`))
+  await step('press-and-hold the gear', `(() => {
+    const b = document.getElementById('gearBtn')
+    b.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 1, bubbles: true }))
+    return 'holding'
+  })()`)
+  await sleep(2400) // ~2s hold (the rAF ring fills and opens the panel itself)
+  check('grown-up panel opened by the hold', await visible('ovGrownup'))
+  await step('choose 😌 Cozy', `(() => { const e = document.querySelector('#ovGrownup [data-vibe="cozy"]'); if (!e) return 'missing'; e.click(); return 'ok' })()`)
+  await sleep(150)
+  await act('close panel', '#gpDone')
+  await sleep(250)
+
+  // ===================================================================
+  // ENTER A ROOM → LEVELING + ABILITIES (§2)
+  // ===================================================================
+  console.log('\n— play: helpers + magic buttons (§2) —')
+  await step('enter first room', `(document.querySelector('.lvl:not(.locked)').click(), 'ok')`)
+  await sleep(800)
+  check('palette built', (await count('.tower-btn')) >= 1, `${await count('.tower-btn')} helpers`)
+  await step('speed up to 3×', `(document.getElementById('speedBtn').click(), document.getElementById('speedBtn').click(), 'ok')`)
+
+  // leveling (headline): place a Candle, upgrade twice
   await step('select Candle', `(document.querySelector('.tower-btn[data-key="candle"]').click(), 'ok')`)
   await step('place Candle @ (0,0)', tapCell(0, 0))
   await step('deselect helper', `(document.querySelector('.tower-btn.active')?.click(), 'ok')`)
   await step('select placed Candle', tapCell(0, 0))
-  await step('action bar shows upgrade', `document.querySelector('.action-bar .up')?.textContent.trim()`)
+  const upLabel = await txt('.action-bar .up')
+  check('action bar offers an upgrade', /Lvl 2/.test(upLabel), upLabel)
   await step('upgrade → Lvl 2', `(document.querySelector('.action-bar .up').click(), 'ok')`)
-  await sleep(150)
+  await sleep(120)
   await step('upgrade → Lvl 3', `(document.querySelector('.action-bar .up').click(), 'ok')`)
-  await sleep(150)
-  await step('action bar after upgrades', `document.querySelector('.action-bar .up')?.textContent.trim()`)
+  await sleep(120)
+  check('upgrades took (now offers Lvl 4)', /Lvl 4/.test(await txt('.action-bar .up')))
+  await step('deselect', `(document.getElementById('canvas').dispatchEvent(new PointerEvent('pointerdown',{clientX:5,clientY:5,bubbles:true})), 'ok')`)
 
-  // place a couple of the NEW kinds too (pull + frost-variant) to exercise them
-  await step('place Tornado (pull)', `(document.querySelector('.tower-btn[data-key="tornado"]').click(), 'ok')`)
-  await step('  → @ (1,0)', tapCell(1, 0))
+  // a couple more helpers so the board does something
+  await step('place Tornado (pull) @ (1,0)', `(document.querySelector('.tower-btn[data-key="tornado"]').click(), 'ok')`)
+  await step('  → tap (1,0)', tapCell(1, 0))
 
-  await sleep(300)
-  // start the wave and let combat run
-  await step('start wave', `(document.getElementById('goBtn').click(), 'ok')`)
-  await sleep(4000)
-  await step('wave/coins/lives snapshot', `({ wave: document.getElementById('wave').textContent, coins: document.getElementById('coins').textContent, lives: document.getElementById('lives').textContent })`)
+  // §2 abilities: tray + cast Candy Rain (+coins) + arm & swipe a Wave
+  const nAb = await count('.ability-btn')
+  check('ability tray rendered', nAb >= 4, `${nAb} buttons`)
+  const coinsBefore = +(await cdp.eval(`+document.getElementById('coins').textContent`))
+  await act('cast 🍬 Candy Rain', '.ability-btn[data-id="candy"]')
+  await sleep(200)
+  const coinsAfter = +(await cdp.eval(`+document.getElementById('coins').textContent`))
+  check('Candy Rain added coins', coinsAfter > coinsBefore, `${coinsBefore} → ${coinsAfter}`)
+  await act('arm 🌊 Wave', '.ability-btn[data-id="wave"]')
+  await sleep(120)
+  await step('swipe across a lane', swipe(2, 1, 8, 5))
+  await sleep(200)
+
+  // ===================================================================
+  // CLEAR EVERY WAVE → WIN (Cozy guarantees it) → TIDY-UP (§9)
+  // ===================================================================
+  console.log('\n— clear all waves → win → tidy-up (§9) —')
+  const wavesTotal = (await txt('#wave')).split('/')[1] || '?'
+  console.log(`  • this room has ${wavesTotal} waves`)
+  let won = false
+  let pressedGo = 0
+  for (let i = 0; i < 60 && !won; i++) {
+    // press Start / Next Wave whenever the GO button is live (prep phase)
+    const r = await cdp.eval(`(() => { const g = document.getElementById('goBtn'); if (g && !g.disabled) { g.click(); return 'go' } return 'wait' })()`)
+    if (r === 'go') pressedGo++
+    await sleep(1100)
+    // tidy-up button appears after the final wave clears: tap to run, tap to skip
+    if (await visible('tidyBtn')) {
+      await cdp.eval(`document.getElementById('tidyBtn').click()`) // start the ritual
+      await sleep(900)
+      await cdp.eval(`(() => { const t = document.getElementById('tidyBtn'); if (t && !t.classList.contains('hidden')) t.click(); return 'skip' })()`) // skip → result
+      await sleep(600)
+    }
+    won = await cdp.eval(`(() => { const r = document.getElementById('ovResult'); return !!(r && !r.classList.contains('hidden') && r.querySelector('.star-on')) })()`)
+  }
+  check(`pressed Start/Next-Wave through the room`, pressedGo >= 1, `${pressedGo} presses`)
+  check('level was WON (tidy-up + result reached)', won)
+
+  // ===================================================================
+  // RESULT SCREEN — stars + treats (§1 points)
+  // ===================================================================
+  console.log('\n— result: stars & treats —')
+  const starsOn = await count('.stars .star-on')
+  check('stars awarded on the result screen', starsOn >= 1, `${starsOn}/3 lit (Cozy → expect 3)`)
+  const treats = await txt('.treats')
+  check('treats (points) awarded', /\+\d+/.test(treats), treats)
+  await act('back to the map', '#mapBtn')
+  await sleep(500)
+
+  // ===================================================================
+  // PROGRESS ADVANCED — the next room unlocked (§7 + §8)
+  // ===================================================================
+  console.log('\n— progress advanced —')
+  check('on the map', await visible('ovSelect'))
+  const room1Locked = await cdp.eval(`!!document.querySelector('.lvl[data-i="1"]')?.classList.contains('locked')`)
+  check('room #2 is now unlocked', room1Locked === false)
+
+  // ===================================================================
+  // BACKYARD SANDBOX (§5) — no-fail endless free play
+  // ===================================================================
+  console.log('\n— backyard sandbox (§5) —')
+  check('backyard button present', await cdp.eval(`!!document.getElementById('backyardBtn')`))
+  await act('enter Backyard', '#backyardBtn')
+  await sleep(700)
+  const sandboxLives = await txt('#lives')
+  check('lives show ∞ (no-fail)', /∞|inf/i.test(sandboxLives), sandboxLives)
+  check('off-ramp "All done!" present in prep', await cdp.eval(`!!document.getElementById('prepDoneBtn')`))
+  await step('start an endless wave', `(() => { const g = document.getElementById('goBtn'); if (g && !g.disabled) g.click(); return 'ok' })()`)
+  await sleep(3000) // let the endless spawner run — must not lose / error
+  const stillSandbox = await cdp.eval(`(() => { return document.getElementById('ovResult')?.classList.contains('hidden') !== false })()`)
+  check('no game-over in the sandbox', stillSandbox)
+  await act('leave via Home', '#menuBtn')
+  await sleep(500)
+  check('returned to the map', await visible('ovSelect'))
 
   // 5) screenshot for eyeballing
   const shot = await cdp.send('Page.captureScreenshot', { format: 'png' })
   writeFileSync('scripts/smoke.png', Buffer.from(shot.data, 'base64'))
-  console.log('  • screenshot → scripts/smoke.png')
+  console.log('\n  • screenshot → scripts/smoke.png')
 
   cleanup()
-  if (errors.length) {
-    console.error('\n❌ SMOKE FAILED — runtime problems:')
-    for (const e of errors) console.error('   ' + e)
+  const problems = errors.length + failures.length
+  if (problems) {
+    if (errors.length) {
+      console.error('\n❌ SMOKE FAILED — runtime problems:')
+      for (const e of errors) console.error('   ' + e)
+    }
+    if (failures.length) {
+      console.error('\n❌ SMOKE FAILED — failed checks:')
+      for (const f of failures) console.error('   ✗ ' + f)
+    }
     process.exit(1)
   }
-  console.log('\n✅ SMOKE PASSED — no console errors or uncaught exceptions.')
+  console.log('\n✅ SMOKE PASSED — full circle, no console errors, all checks green.')
   process.exit(0)
 }
 

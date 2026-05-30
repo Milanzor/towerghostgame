@@ -44,6 +44,8 @@ export const sfx = {
   hurt: () => tone(180, 0.25, 'sawtooth', 0.16, 70),
   upgrade: () => { tone(523, 0.1, 'triangle', 0.18); setTimeout(() => tone(784, 0.14, 'triangle', 0.18), 90) },
   wave: () => { tone(440, 0.12, 'triangle', 0.16); setTimeout(() => tone(660, 0.16, 'triangle', 0.16), 110) },
+  freeze: () => tone(1200, 0.18, 'sine', 0.1, 500),
+  zap: () => { tone(1400, 0.05, 'square', 0.06); setTimeout(() => tone(900, 0.05, 'square', 0.05), 40) },
   win: () => {
     const notes = [523, 659, 784, 1047]
     notes.forEach((n, i) => setTimeout(() => tone(n, 0.22, 'triangle', 0.2), i * 130))

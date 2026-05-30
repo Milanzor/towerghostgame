@@ -4,11 +4,12 @@ import {
   TOWERS, TOWER_ORDER, ENEMIES, LEVELS,
 } from './content.js'
 import { sfx, setMuted, isMuted } from './audio.js'
+import { initUpdateCheck } from './update-check.js'
 
 // ===========================================================================
 // Save / progress
 // ===========================================================================
-const SAVE_KEY = 'ghostcatchers-v1'
+const SAVE_KEY = 'ghostcatchers-v2'
 
 function loadSave() {
   try {
@@ -35,15 +36,20 @@ app.innerHTML = `
       <span class="chip coins">🪙 <span id="coins">0</span></span>
       <span class="chip lives">💜 <span id="lives">0</span></span>
       <span class="chip wave">🌊 <span id="wave">0/0</span></span>
+      <button class="btn-mini update-btn" id="updateBtn" title="New version! Tap to update" hidden>✨</button>
       <button class="btn-mini" id="speedBtn" title="Speed">⏩</button>
       <button class="btn-mini" id="muteBtn" title="Sound">🔊</button>
       <button class="btn-mini" id="menuBtn" title="Menu">🏠</button>
     </div>
     <div class="stage" id="stage">
       <canvas id="canvas"></canvas>
+      <div class="prep-banner hidden" id="prepBanner"></div>
       <div class="action-bar hidden" id="actionBar"></div>
     </div>
-    <div class="palette" id="palette"></div>
+    <div class="palette" id="palette">
+      <div class="tower-strip" id="towerStrip"></div>
+      <button class="go-btn" id="goBtn"></button>
+    </div>
   </div>
 `
 
@@ -51,7 +57,9 @@ const canvas = document.getElementById('canvas')
 const ctx = canvas.getContext('2d')
 const stage = document.getElementById('stage')
 const paletteEl = document.getElementById('palette')
+const towerStrip = document.getElementById('towerStrip')
 const actionBar = document.getElementById('actionBar')
+const prepBanner = document.getElementById('prepBanner')
 const elCoins = document.getElementById('coins')
 const elLives = document.getElementById('lives')
 const elWave = document.getElementById('wave')
@@ -105,7 +113,7 @@ function newGame(levelIndex) {
     waveIndex: 0,
     waveCount: level.waves.length,
     phase: 'prep', // 'prep' | 'spawning' | 'cleanup' | 'done'
-    prepTimer: 9,
+    started: false, // has the player pressed Start at least once?
     spawnQueue: [],
     spawnTimer: 0,
     nextGap: 0,
@@ -129,7 +137,7 @@ function newGame(levelIndex) {
 // ===========================================================================
 let goBtn = null
 function buildPalette() {
-  paletteEl.innerHTML = ''
+  towerStrip.innerHTML = ''
   for (const key of TOWER_ORDER) {
     const t = TOWERS[key]
     const b = document.createElement('button')
@@ -141,15 +149,15 @@ function buildPalette() {
       <div class="tprice">🪙 ${t.cost}</div>
       <span class="tblurb">${t.blurb}</span>`
     b.addEventListener('click', () => selectTowerType(key))
-    paletteEl.appendChild(b)
+    attachDrag(b, key)
+    towerStrip.appendChild(b)
   }
-  goBtn = document.createElement('button')
-  goBtn.className = 'go-btn'
+  goBtn = document.getElementById('goBtn')
   goBtn.addEventListener('click', onGo)
-  paletteEl.appendChild(goBtn)
 }
 
 function selectTowerType(key) {
+  if (justDragged) return // a drag just finished; ignore the trailing click
   sfx.click()
   G.selectedTower = null
   hideActionBar()
@@ -160,13 +168,92 @@ function selectTowerType(key) {
 function refreshPalette() {
   for (const b of paletteEl.querySelectorAll('.tower-btn')) {
     const t = TOWERS[b.dataset.key]
-    b.classList.toggle('active', G.selectedType === b.dataset.key)
-    b.classList.toggle('cant', G.coins < t.cost)
+    b.classList.toggle('active', G && G.selectedType === b.dataset.key)
+    b.classList.toggle('cant', G && G.coins < t.cost)
   }
 }
 
 function onGo() {
-  if (G.phase === 'prep') startWave()
+  if (G && G.phase === 'prep') startWave()
+}
+
+// ===========================================================================
+// Drag & drop placement (palette → field)
+// ===========================================================================
+let dragKey = null
+let dragGhostEl = null
+let dragMoved = false
+let justDragged = false
+
+function attachDrag(btn, key) {
+  btn.addEventListener('pointerdown', (ev) => {
+    if (screen !== 'playing') return
+    justDragged = false // fresh press — let the trailing click through
+    if (G.coins < TOWERS[key].cost) return // can't afford → no drag
+    ev.preventDefault()
+    startDrag(key, ev)
+  })
+}
+
+function startDrag(key, ev) {
+  dragKey = key
+  dragMoved = false
+  justDragged = false
+  G.selectedTower = null
+  hideActionBar()
+  G.selectedType = key
+  refreshPalette()
+  const def = TOWERS[key]
+  dragGhostEl = document.createElement('div')
+  dragGhostEl.className = 'drag-ghost'
+  dragGhostEl.textContent = def.emoji
+  document.body.appendChild(dragGhostEl)
+  moveDragGhost(ev.clientX, ev.clientY)
+}
+
+function moveDragGhost(x, y) {
+  if (dragGhostEl) {
+    dragGhostEl.style.left = `${x}px`
+    dragGhostEl.style.top = `${y}px`
+  }
+}
+
+window.addEventListener('pointermove', (ev) => {
+  if (!dragKey) return
+  dragMoved = true
+  moveDragGhost(ev.clientX, ev.clientY)
+  // reflect hover cell for the on-field preview
+  const cell = cellFromClient(ev.clientX, ev.clientY)
+  G.hoverCell = cell // may be null when off-canvas
+})
+
+window.addEventListener('pointerup', (ev) => {
+  if (!dragKey) return
+  const cell = cellFromClient(ev.clientX, ev.clientY)
+  if (cell && dragMoved) {
+    G.selectedType = dragKey
+    placeTower(cell.c, cell.r)
+    justDragged = true // suppress the click-toggle that follows
+  }
+  endDrag()
+})
+
+function endDrag() {
+  dragKey = null
+  dragMoved = false
+  G.hoverCell = null
+  if (dragGhostEl) { dragGhostEl.remove(); dragGhostEl = null }
+}
+
+// Convert a client (screen) coordinate to a grid cell, or null if outside canvas.
+function cellFromClient(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect()
+  if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+    return null
+  }
+  const x = (clientX - rect.left) / rect.width * FIELD_W
+  const y = (clientY - rect.top) / rect.height * FIELD_H
+  return { x, y, c: Math.floor(x / TILE), r: Math.floor(y / TILE) }
 }
 
 // ===========================================================================
@@ -181,26 +268,35 @@ function startWave() {
     }
   }
   G.phase = 'spawning'
+  G.started = true
   G.spawnTimer = 0
   G.nextGap = 0.3
+  hidePrepBanner()
   sfx.wave()
 }
 
-function spawnEnemy(type) {
+function makeEnemy(type, opts = {}) {
   const def = ENEMIES[type]
   const hp = Math.round(def.hp * G.level.hpScale)
   const wp = G.level.waypoints
-  G.enemies.push({
+  return {
     type, def,
     hp, maxHp: hp,
-    x: wp[0].x, y: wp[0].y,
-    seg: 1,
-    dist: 0,
-    slowTimer: 0,
-    slowFactor: 1,
+    x: opts.x ?? wp[0].x,
+    y: opts.y ?? wp[0].y,
+    seg: opts.seg ?? 1,
+    dist: opts.dist ?? 0,
+    slowTimer: 0, slowFactor: 1,
+    burnTimer: 0, burnDps: 0,
+    poisonTimer: 0, poisonDps: 0,
+    shield: def.shield || 0,
     bobPhase: Math.random() * Math.PI * 2,
-    facing: 1,
-  })
+    facing: opts.facing ?? 1,
+  }
+}
+
+function spawnEnemy(type) {
+  G.enemies.push(makeEnemy(type))
 }
 
 function updateSpawning(dt) {
@@ -219,7 +315,7 @@ function checkWaveCleared() {
   if (G.phase !== 'cleanup') return
   if (G.enemies.length > 0) return
   // Wave bonus!
-  const bonus = 25 + G.waveIndex * 8
+  const bonus = 25 + G.waveIndex * 10
   G.coins += bonus
   floatText(FIELD_W / 2, FIELD_H / 2, `Wave clear! +${bonus}`, '#ffd34d', 28)
   sfx.coin()
@@ -229,7 +325,7 @@ function checkWaveCleared() {
     win()
   } else {
     G.phase = 'prep'
-    G.prepTimer = 8
+    showPrepBanner()
   }
 }
 
@@ -239,6 +335,23 @@ function checkWaveCleared() {
 function updateEnemies(dt) {
   const wp = G.level.waypoints
   for (const e of G.enemies) {
+    if (e.dead) continue
+    // damage-over-time + healing
+    if (e.burnTimer > 0) {
+      e.burnTimer -= dt
+      damageEnemy(e, e.burnDps * dt, { trueDmg: true, silent: true })
+      if (Math.random() < dt * 14) emberAt(e.x, e.y, '#ff8a3d')
+    }
+    if (!e.dead && e.poisonTimer > 0) {
+      e.poisonTimer -= dt
+      damageEnemy(e, e.poisonDps * dt, { trueDmg: true, silent: true })
+      if (Math.random() < dt * 12) emberAt(e.x, e.y, '#b86bff')
+    }
+    if (!e.dead && e.def.regen && e.hp < e.maxHp) {
+      e.hp = Math.min(e.maxHp, e.hp + e.def.regen * dt)
+    }
+    if (e.dead) continue
+
     let eff = 1
     if (e.slowTimer > 0) { e.slowTimer -= dt; eff = e.slowFactor }
     const speed = e.def.speed * eff * TILE
@@ -279,17 +392,53 @@ function updateEnemies(dt) {
   }
 }
 
-function damageEnemy(e, dmg) {
+function damageEnemy(e, dmg, opts) {
   if (e.dead) return
-  e.hp -= dmg
-  if (e.hp <= 0) {
-    e.dead = true
-    const reward = Math.round(e.def.reward * G.level.rewardScale)
-    G.coins += reward
-    popEffect(e.x, e.y, e.def.color)
-    floatText(e.x, e.y - 10, `+${reward}`, '#ffd34d', 18)
-    sfx.pop()
+  // shield bubble eats whole hits (but not DoT ticks)
+  if (e.shield > 0 && !(opts && opts.trueDmg)) {
+    e.shield--
+    ringEffect(e.x, e.y, e.def.radius + 6, '#8cff9e')
+    return
   }
+  let d = dmg
+  if (e.def.armor && !(opts && opts.trueDmg)) d = Math.max(1, d - e.def.armor)
+  e.hp -= d
+  if (e.hp <= 0) killEnemy(e, opts)
+}
+
+function killEnemy(e, opts) {
+  if (e.dead) return
+  e.dead = true
+  const reward = Math.round(e.def.reward * G.level.rewardScale)
+  G.coins += reward
+  popEffect(e.x, e.y, e.def.color)
+  floatText(e.x, e.y - 10, `+${reward}`, '#ffd34d', 18)
+  if (!(opts && opts.silent)) sfx.pop()
+  // split into little ones
+  if (e.def.split) {
+    const { type, count } = e.def.split
+    for (let i = 0; i < count; i++) {
+      const jitter = (i - (count - 1) / 2) * 8
+      const child = makeEnemy(type, {
+        x: e.x, y: e.y + jitter,
+        seg: e.seg, dist: e.dist, facing: e.facing,
+      })
+      G.enemies.push(child)
+    }
+  }
+}
+
+function applyBurn(e, dps, dur) {
+  e.burnDps = Math.max(e.burnDps, dps)
+  e.burnTimer = Math.max(e.burnTimer, dur)
+}
+function applyPoison(e, dps, dur) {
+  e.poisonDps = Math.max(e.poisonDps, dps)
+  e.poisonTimer = Math.max(e.poisonTimer, dur)
+}
+function applySlow(e, factor, dur) {
+  e.slowFactor = Math.min(e.slowFactor === 1 ? factor : Math.min(e.slowFactor, factor), factor)
+  e.slowTimer = Math.max(e.slowTimer, dur)
 }
 
 function removeDead() {
@@ -325,24 +474,76 @@ function findTarget(t) {
   return best
 }
 
+function findTargets(t, n) {
+  const rangePx = towerStat(t, 'range') * TILE
+  const r2 = rangePx * rangePx
+  const inRange = []
+  for (const e of G.enemies) {
+    if (e.dead) continue
+    const dx = e.x - t.cx
+    const dy = e.y - t.cy
+    if (dx * dx + dy * dy <= r2) inRange.push(e)
+  }
+  inRange.sort((a, b) => b.dist - a.dist)
+  return inRange.slice(0, n)
+}
+
+function enemiesInRange(cx, cy, rangePx) {
+  const r2 = rangePx * rangePx
+  const out = []
+  for (const e of G.enemies) {
+    if (e.dead) continue
+    const dx = e.x - cx
+    const dy = e.y - cy
+    if (dx * dx + dy * dy <= r2) out.push(e)
+  }
+  return out
+}
+
 function updateTowers(dt) {
   for (const t of G.towers) {
     t.cd -= dt
     t.beamTo = null
     if (t.cd > 0) continue
+    const kind = t.def.kind
+
+    if (kind === 'bank') {
+      const income = towerStat(t, 'income')
+      G.coins += income
+      floatText(t.cx, t.cy - 14, `+${income}`, '#ffd34d', 16)
+      t.cd = towerStat(t, 'cooldown')
+      sfx.coin()
+      continue
+    }
+
+    if (kind === 'frost' || kind === 'pulse') {
+      const rangePx = towerStat(t, 'range') * TILE
+      const hits = enemiesInRange(t.cx, t.cy, rangePx)
+      if (hits.length === 0) continue
+      t.cd = towerStat(t, 'cooldown')
+      const dmg = towerStat(t, 'damage')
+      for (const e of hits) {
+        damageEnemy(e, dmg)
+        if (kind === 'frost') applySlow(e, towerStat(t, 'slow'), towerStat(t, 'slowDur'))
+      }
+      ringEffect(t.cx, t.cy, rangePx, t.def.color)
+      if (kind === 'frost') { sfx.freeze(); t.frostPulse = 0.3 }
+      else { sfx.shoot(); t.frostPulse = 0.3 }
+      continue
+    }
+
     const target = findTarget(t)
     if (!target) continue
     t.cd = towerStat(t, 'cooldown')
     const dmg = towerStat(t, 'damage')
-    const kind = t.def.kind
+
     if (kind === 'beam') {
       damageEnemy(target, dmg)
       addBeam(t.cx, t.cy, target.x, target.y, t.def.color, 0.12)
       sfx.shoot()
     } else if (kind === 'suck') {
       damageEnemy(target, dmg)
-      target.slowTimer = 0.3
-      target.slowFactor = towerStat(t, 'slow')
+      applySlow(target, towerStat(t, 'slow'), 0.35)
       t.beamTo = target
     } else if (kind === 'splash') {
       G.projectiles.push({
@@ -354,7 +555,57 @@ function updateTowers(dt) {
         color: t.def.color,
       })
       sfx.shoot()
+    } else if (kind === 'burn') {
+      damageEnemy(target, dmg)
+      applyBurn(target, towerStat(t, 'burnDps'), towerStat(t, 'burnDur'))
+      addBeam(t.cx, t.cy, target.x, target.y, '#ff8a3d', 0.12)
+      sfx.shoot()
+    } else if (kind === 'poison') {
+      damageEnemy(target, dmg)
+      applyPoison(target, towerStat(t, 'poisonDps'), towerStat(t, 'poisonDur'))
+      applySlow(target, towerStat(t, 'slow'), 0.5)
+      addBeam(t.cx, t.cy, target.x, target.y, '#c065ff', 0.12)
+      sfx.shoot()
+    } else if (kind === 'chain') {
+      chainZap(t, dmg, target)
+      sfx.shoot()
+    } else if (kind === 'multishot') {
+      const targets = findTargets(t, towerStat(t, 'shots'))
+      const cols = ['#ff6b8b', '#ffd34d', '#7be38c', '#5bc8ff', '#c065ff']
+      targets.forEach((e, i) => {
+        damageEnemy(e, dmg)
+        addBeam(t.cx, t.cy, e.x, e.y, cols[i % cols.length], 0.12)
+      })
+      sfx.shoot()
     }
+  }
+}
+
+function chainZap(t, dmg, first) {
+  const hit = new Set()
+  const count = towerStat(t, 'chainCount')
+  const range = towerStat(t, 'chainRange') * TILE
+  const fall = towerStat(t, 'chainFalloff')
+  let cur = first
+  let from = { x: t.cx, y: t.cy }
+  let d = dmg
+  for (let i = 0; i < count && cur; i++) {
+    addBeam(from.x, from.y, cur.x, cur.y, t.def.color, 0.14)
+    damageEnemy(cur, d)
+    hit.add(cur)
+    from = { x: cur.x, y: cur.y }
+    // next nearest unhit enemy within chain range
+    let best = null
+    let bd = range * range
+    for (const e of G.enemies) {
+      if (e.dead || hit.has(e)) continue
+      const dx = e.x - cur.x
+      const dy = e.y - cur.y
+      const dd = dx * dx + dy * dy
+      if (dd <= bd) { bd = dd; best = e }
+    }
+    cur = best
+    d *= fall
   }
 }
 
@@ -403,6 +654,13 @@ function popEffect(x, y, color) {
     })
   }
 }
+function emberAt(x, y, color) {
+  G.particles.push({
+    kind: 'puff', x: x + (Math.random() - 0.5) * 16, y: y + (Math.random() - 0.5) * 16,
+    vx: (Math.random() - 0.5) * 30, vy: -40 - Math.random() * 30,
+    life: 0.45, max: 0.45, r: 3 + Math.random() * 3, color,
+  })
+}
 function ringEffect(x, y, radius, color) {
   G.particles.push({ kind: 'ring', x, y, r: 6, max: radius, life: 0.35, t: 0.35, color })
 }
@@ -443,8 +701,9 @@ function towerAt(c, r) {
 
 function placeTower(c, r) {
   const key = G.selectedType
+  if (!key) return
   const def = TOWERS[key]
-  if (!cellBuildable(c, r)) return
+  if (!cellBuildable(c, r)) { sfx.hurt(); return }
   if (G.coins < def.cost) { sfx.hurt(); return }
   G.coins -= def.cost
   G.towers.push({
@@ -453,9 +712,10 @@ function placeTower(c, r) {
     cx: c * TILE + TILE / 2,
     cy: r * TILE + TILE / 2,
     level: 1,
-    cd: 0,
+    cd: def.kind === 'bank' ? def.cooldown : 0,
     totalSpent: def.cost,
     beamTo: null,
+    frostPulse: 0,
   })
   G.occupied.add(`${c},${r}`)
   sfx.place()
@@ -478,6 +738,7 @@ function canvasPos(ev) {
 
 canvas.addEventListener('pointerdown', (ev) => {
   if (screen !== 'playing') return
+  if (dragKey) return // a palette drag is in progress
   const { c, r } = canvasPos(ev)
   if (G.selectedType) {
     placeTower(c, r)
@@ -494,10 +755,11 @@ canvas.addEventListener('pointerdown', (ev) => {
 
 canvas.addEventListener('pointermove', (ev) => {
   if (screen !== 'playing') return
+  if (dragKey) return // handled by the global drag listener
   const { c, r } = canvasPos(ev)
   G.hoverCell = { c, r }
 })
-canvas.addEventListener('pointerleave', () => { if (G) G.hoverCell = null })
+canvas.addEventListener('pointerleave', () => { if (G && !dragKey) G.hoverCell = null })
 
 // ---- Action bar (upgrade / sell) ----
 function showActionBar(t) {
@@ -558,15 +820,31 @@ document.getElementById('muteBtn').addEventListener('click', (e) => {
   setMuted(!isMuted())
   e.currentTarget.textContent = isMuted() ? '🔇' : '🔊'
 })
+const SPEEDS = [1, 2, 3]
 document.getElementById('speedBtn').addEventListener('click', (e) => {
   if (!G) return
-  G.speed = G.speed === 1 ? 2 : 1
-  e.currentTarget.textContent = G.speed === 2 ? '⏩⏩' : '⏩'
+  const i = (SPEEDS.indexOf(G.speed) + 1) % SPEEDS.length
+  G.speed = SPEEDS[i]
+  e.currentTarget.textContent = G.speed === 1 ? '⏩' : `${G.speed}×`
 })
 document.getElementById('menuBtn').addEventListener('click', () => {
   sfx.click()
   showLevelSelect()
 })
+
+// ===========================================================================
+// Prep banner ("press Start")
+// ===========================================================================
+function showPrepBanner() {
+  const isFirst = !G.started
+  prepBanner.innerHTML = isFirst
+    ? `🛡️ Place your helpers, then press <b>Start!</b>`
+    : `✅ Wave ${G.waveIndex} cleared! Build more, then press <b>Next Wave!</b>`
+  prepBanner.classList.remove('hidden')
+}
+function hidePrepBanner() {
+  prepBanner.classList.add('hidden')
+}
 
 // ===========================================================================
 // Screens
@@ -577,11 +855,11 @@ function showStart() {
   ovStart.innerHTML = `
     <div class="card">
       <h1>👻 Ghost Catchers</h1>
-      <p>Spooky-cute ghosts are sneaking through the haunted mansion!
-      Build your <b>flashlights</b> 🔦, <b>poltergusts</b> 🌀 and <b>boo bombs</b> 💥
-      to catch them all. Don't worry — it's friendly, not scary! 💜</p>
+      <p>Spooky-cute monsters are sneaking through the haunted mansion!
+      Build <b>flashlights</b> 🔦, <b>frostpuffs</b> ❄️, <b>star wands</b> 🌟 and lots more
+      to catch them all. It's friendly, not scary! 💜</p>
       <button class="big-btn green" id="playBtn">▶ Play</button>
-      <div class="hint">Tip: tap a helper at the bottom, then tap the floor to place it.</div>
+      <div class="hint">Tip: <b>drag</b> a helper from the bottom onto the floor — or tap one, then tap the floor.</div>
     </div>`
   hideAllOverlays()
   ovStart.classList.remove('hidden')
@@ -606,14 +884,14 @@ function showLevelSelect() {
     const stars = save.stars[i] || 0
     cells += `
       <div class="lvl ${locked ? 'locked' : ''}" data-i="${i}">
-        <div class="num">${locked ? '🔒' : i + 1}</div>
+        <div class="num">${locked ? '🔒' : (lv.emoji || i + 1)}</div>
         <div class="lname">${locked ? '???' : lv.name}</div>
         <div class="ministars">${locked ? '' : starString(stars)}</div>
       </div>`
   })
   const totalStars = Object.values(save.stars).reduce((a, b) => a + b, 0)
   ovSelect.innerHTML = `
-    <div class="card">
+    <div class="card wide">
       <h1>Pick a Room</h1>
       <p>⭐ Stars collected: <b>${totalStars} / ${LEVELS.length * 3}</b></p>
       <div class="levels">${cells}</div>
@@ -635,6 +913,7 @@ function startLevel(i) {
   hideActionBar()
   elLevelName.textContent = LEVELS[i].name
   document.getElementById('speedBtn').textContent = '⏩'
+  showPrepBanner()
   refreshPalette()
 }
 
@@ -653,6 +932,7 @@ function win() {
   if (i + 1 >= LEVELS.length) save.unlocked = Math.max(save.unlocked, LEVELS.length - 1)
   writeSave()
   sfx.win()
+  hidePrepBanner()
   const isLast = i + 1 >= LEVELS.length
   ovResult.innerHTML = `
     <div class="card">
@@ -663,7 +943,7 @@ function win() {
         <span class="${stars >= 3 ? 'star-on' : 'star-off'}">⭐</span>
       </div>
       <h2>${G.level.name} cleared!</h2>
-      <p>${stars === 3 ? 'Perfect! Not a single ghost got by! 🌟' : 'Great catching! Can you get all 3 stars? 💪'}</p>
+      <p>${stars === 3 ? 'Perfect! Not a single monster got by! 🌟' : 'Great catching! Can you get all 3 stars? 💪'}</p>
       <div>
         ${!isLast ? '<button class="big-btn green" id="nextBtn">▶ Next Room</button>' : '<p>🏆 You finished every room! You are a Ghost Master! 🏆</p>'}
         <button class="big-btn" id="replayBtn">🔁 Play Again</button>
@@ -680,11 +960,12 @@ function win() {
 function lose() {
   G.phase = 'done'
   sfx.lose()
+  hidePrepBanner()
   const i = G.levelIndex
   ovResult.innerHTML = `
     <div class="card">
       <h1>😅 Oh no!</h1>
-      <h2>The ghosts got through!</h2>
+      <h2>The monsters got through!</h2>
       <p>That's okay — every ghost catcher needs practice. Try again, you've got this! 💜</p>
       <div>
         <button class="big-btn green" id="retryBtn">🔁 Try Again</button>
@@ -707,7 +988,7 @@ function syncHUD() {
   if (goBtn) {
     if (G.phase === 'prep') {
       goBtn.disabled = false
-      goBtn.textContent = `▶ GO! (${Math.ceil(G.prepTimer)})`
+      goBtn.textContent = G.started ? '▶ Next Wave!' : '▶ Start!'
     } else if (G.phase === 'done') {
       goBtn.disabled = true
       goBtn.textContent = '🎉'
@@ -852,12 +1133,21 @@ function roundRect(x, y, w, h, r) {
 function drawTowers() {
   for (const t of G.towers) {
     const sel = G.selectedTower === t
-    if (sel) {
+    if (sel && towerStat(t, 'range') > 0) {
       const rangePx = towerStat(t, 'range') * TILE
       ctx.fillStyle = 'rgba(255,255,255,0.10)'
       ctx.strokeStyle = 'rgba(255,255,255,0.5)'
       ctx.lineWidth = 2
       ctx.beginPath(); ctx.arc(t.cx, t.cy, rangePx, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+    }
+    // frost/pulse aura flash
+    if (t.frostPulse > 0) {
+      t.frostPulse -= 0.016
+      const rp = towerStat(t, 'range') * TILE
+      ctx.globalAlpha = clamp(t.frostPulse, 0, 1) * 0.5
+      ctx.fillStyle = t.def.color
+      ctx.beginPath(); ctx.arc(t.cx, t.cy, rp, 0, Math.PI * 2); ctx.fill()
+      ctx.globalAlpha = 1
     }
     // shadow
     ctx.fillStyle = 'rgba(0,0,0,0.3)'
@@ -880,7 +1170,7 @@ function drawTowers() {
       ctx.fillText('⭐', t.cx + 16, t.cy - 16)
     }
     // active suck beam
-    if (t.beamTo) {
+    if (t.beamTo && !t.beamTo.dead) {
       drawSuckBeam(t, t.beamTo)
     }
   }
@@ -919,7 +1209,10 @@ function drawProjectiles() {
 }
 
 function drawEnemies() {
-  for (const e of G.enemies) drawGhost(e)
+  for (const e of G.enemies) {
+    if (e.def.shape === 'ghost') drawGhost(e)
+    else drawCritter(e)
+  }
 }
 
 function drawGhost(e) {
@@ -983,16 +1276,65 @@ function drawGhost(e) {
   ctx.lineCap = 'round'
   ctx.beginPath(); ctx.arc(cx, cy + r * 0.18, r * 0.28, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke()
 
-  // hp bar
-  if (e.hp < e.maxHp) {
-    const w = r * 1.6, h = 6
-    const bx = cx - w / 2, by = cy - r - 12
-    ctx.fillStyle = 'rgba(0,0,0,0.5)'
-    roundRect(bx, by, w, h, 3); ctx.fill()
-    const frac = clamp(e.hp / e.maxHp, 0, 1)
-    ctx.fillStyle = frac > 0.5 ? '#7be38c' : frac > 0.25 ? '#ffd34d' : '#ff6b8b'
-    roundRect(bx, by, w * frac, h, 3); ctx.fill()
+  drawStatus(e, cx, cy, r)
+  drawHpBar(e, cx, cy, r)
+}
+
+function drawCritter(e) {
+  const def = e.def
+  const r = def.radius
+  const bob = Math.sin(G.time * 4 + e.bobPhase) * 3
+  const squish = 1 + Math.sin(G.time * 6 + e.bobPhase) * 0.06
+  const cx = e.x
+  const cy = e.y + bob
+
+  // shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.28)'
+  ctx.beginPath(); ctx.ellipse(e.x, e.y + r * 0.95, r * 0.8, r * 0.28, 0, 0, Math.PI * 2); ctx.fill()
+
+  // soft glow body
+  const grd = ctx.createRadialGradient(cx, cy - r * 0.2, r * 0.2, cx, cy, r)
+  grd.addColorStop(0, lighten(def.color, 40))
+  grd.addColorStop(1, def.color)
+  ctx.fillStyle = grd
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)'
+  ctx.lineWidth = 3
+  ctx.beginPath(); ctx.ellipse(cx, cy, r, r / squish, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+
+  // frozen tint
+  if (e.slowTimer > 0 && e.slowFactor <= 0.5) {
+    ctx.fillStyle = 'rgba(150,220,255,0.35)'
+    ctx.beginPath(); ctx.ellipse(cx, cy, r, r / squish, 0, 0, Math.PI * 2); ctx.fill()
   }
+
+  // emoji face
+  ctx.font = `${Math.round(r * 1.5)}px serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText(def.emoji, cx, cy + 1)
+
+  drawStatus(e, cx, cy, r)
+  drawHpBar(e, cx, cy, r)
+}
+
+function drawStatus(e, cx, cy, r) {
+  let bx = cx - r * 0.7
+  const by = cy - r - 16
+  ctx.font = '13px serif'
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  if (e.shield > 0) { ctx.fillText('🛡️', bx, by); bx += 14 }
+  if (e.burnTimer > 0) { ctx.fillText('🔥', bx, by); bx += 14 }
+  if (e.poisonTimer > 0) { ctx.fillText('🫧', bx, by); bx += 14 }
+}
+
+function drawHpBar(e, cx, cy, r) {
+  if (e.hp >= e.maxHp) return
+  const w = r * 1.6, h = 6
+  const bx = cx - w / 2, by = cy - r - 12
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'
+  roundRect(bx, by, w, h, 3); ctx.fill()
+  const frac = clamp(e.hp / e.maxHp, 0, 1)
+  ctx.fillStyle = frac > 0.5 ? '#7be38c' : frac > 0.25 ? '#ffd34d' : '#ff6b8b'
+  roundRect(bx, by, w * frac, h, 3); ctx.fill()
 }
 
 function drawParticles() {
@@ -1043,10 +1385,12 @@ function drawPlacementPreview() {
   const cx = c * TILE + TILE / 2
   const cy = r * TILE + TILE / 2
   // range
-  ctx.fillStyle = ok ? 'rgba(120,255,150,0.12)' : 'rgba(255,80,100,0.12)'
-  ctx.strokeStyle = ok ? 'rgba(120,255,150,0.7)' : 'rgba(255,80,100,0.7)'
-  ctx.lineWidth = 2
-  ctx.beginPath(); ctx.arc(cx, cy, def.range * TILE, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+  if (def.range > 0) {
+    ctx.fillStyle = ok ? 'rgba(120,255,150,0.12)' : 'rgba(255,80,100,0.12)'
+    ctx.strokeStyle = ok ? 'rgba(120,255,150,0.7)' : 'rgba(255,80,100,0.7)'
+    ctx.lineWidth = 2
+    ctx.beginPath(); ctx.arc(cx, cy, def.range * TILE, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+  }
   // tile highlight
   ctx.fillStyle = ok ? 'rgba(120,255,150,0.25)' : 'rgba(255,80,100,0.25)'
   roundRect(c * TILE + 4, r * TILE + 4, TILE - 8, TILE - 8, 10); ctx.fill()
@@ -1084,10 +1428,7 @@ function frame(now) {
 
     if (G.phase !== 'done') {
       const sdt = dt * G.speed
-      if (G.phase === 'prep') {
-        G.prepTimer -= sdt
-        if (G.prepTimer <= 0) startWave()
-      }
+      // NOTE: prep waits for the player to press Start — no auto-countdown.
       updateSpawning(sdt)
       updateEnemies(sdt)
       updateTowers(sdt)
@@ -1110,4 +1451,5 @@ function frame(now) {
 // ===========================================================================
 buildPalette()
 showStart()
+initUpdateCheck()
 requestAnimationFrame(frame)

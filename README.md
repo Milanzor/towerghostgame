@@ -1,10 +1,12 @@
 # 👻 Ghost Catchers — a friendly tower defense for little kids
 
+### ▶ Play it now: **https://milanzor.github.io/towerghostgame/**
+
 A cartoonish, **not-at-all-scary** tower defense game inspired by *Luigi's Mansion*.
-Cute ghosts float through a haunted house and you build silly helpers — a
-**Flashlight** 🔦, a **Poltergust** 🌀 and a **Boo Bomb** 💥 — to gently catch them.
-Designed to be easy and rewarding for a 5-year-old, with big buttons, happy sounds,
-coins, and ⭐ stars for every level.
+Cute ghosts and silly monsters float through a haunted house and you build helpers —
+a **Flashlight** 🔦, a **Frostpuff** ❄️, a **Star Wand** 🌟 and lots more — to gently
+catch them. Designed to be easy and rewarding for a 5-year-old, with big buttons,
+happy sounds, coins, and ⭐ stars for every level.
 
 Built with **Vite** + plain HTML5 Canvas — no game-engine dependency, so it's tiny
 and loads instantly. Builds straight into `docs/` for GitHub Pages.
@@ -12,13 +14,14 @@ and loads instantly. Builds straight into `docs/` for GitHub Pages.
 ## How to play (kid-friendly)
 
 1. Tap **▶ Play**, then pick a room.
-2. Tap a helper at the bottom (🔦 / 🌀 / 💥), then tap the glowing floor dots to place it.
-3. Tap **▶ GO!** to start a wave of ghosts (or just wait — it starts on its own).
-4. Catch all the ghosts before they reach the door 🏚️. Earn 🪙 coins for each one.
+2. **Drag** a helper from the bottom strip onto the glowing floor dots — or tap one, then tap the floor.
+3. Press **▶ Start!** when you're ready, and the wave begins (it waits for you).
+4. Catch all the monsters before they reach the door 🏚️. Earn 🪙 coins for each one.
 5. Tap a placed helper to **⬆️ Upgrade** it or **🗑️ Sell** it.
 6. Clear all the waves to win ⭐ stars and unlock the next room!
 
-There are **5 progressively harder rooms**, ending with a **King Boo 👑** boss.
+There are **12 progressively harder rooms**, **15 helpers** and **20 cute monster types**
+(with armour, shields, healing and splitting), ending with **King Boo 👑** and friends.
 Stars and progress are saved automatically in the browser.
 
 ## Develop

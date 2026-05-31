@@ -1,6 +1,6 @@
 // Waves, spawning and everything the monsters do: movement, damage, deaths,
 // splits, status effects (burn/poison/slow) and the per-area boss tricks.
-import { S, isCozy, recordCaught } from './state.js'
+import { S, isCozy } from './state.js'
 import { ENEMIES, TILE, FIELD_W, FIELD_H } from '../content.js'
 import { sfx } from '../audio.js'
 import { floatText, popEffect, ringEffect, emberAt } from './effects.js'
@@ -237,7 +237,7 @@ function damageEnemy(e, dmg, opts) {
 function killEnemy(e, opts) {
   if (e.dead) return
   e.dead = true
-  recordCaught(e.type) // sticker album — remember this kind was caught
+  S.G.caughtThisRun.add(e.type) // sticker album — banked into the album only on a win
   const reward = Math.round(e.def.reward * S.G.level.rewardScale)
   S.G.coins += reward
   popEffect(e.x, e.y, e.def.color)

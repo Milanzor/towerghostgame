@@ -1,5 +1,5 @@
 // Start screen, room picker, and the win/lose result screens.
-import { S, writeSave, newGame, newSandbox, currentProfile, setActiveProfile, addProfile, updateProfile, listProfiles, recordLoss, stuckBonusFor, resetStuck } from './state.js'
+import { S, writeSave, newGame, newSandbox, currentProfile, setActiveProfile, addProfile, updateProfile, listProfiles, recordLoss, stuckBonusFor, resetStuck, commitCaught } from './state.js'
 import { LEVELS, AREAS, ENEMIES } from '../content.js'
 import { BACKYARD } from '../backyard.js'
 import { sfx, music } from '../audio.js'
@@ -349,6 +349,8 @@ function startSandbox() {
 
 // The gentle off-ramp: drift back to the map — no game-over.
 function leaveSandbox() {
+  // Free play isn't a loss — bank any stickers caught in the Backyard session.
+  if (S.G) commitCaught(S.G.caughtThisRun)
   music.stop()
   hidePrepBanner()
   showLevelSelect()
@@ -491,6 +493,8 @@ function applyWinRewards(leftoverCoins) {
   // stars earned + a little for leftover coins. Hats are bought with these.
   const earned = 3 + stars + Math.floor(coins / 25)
   prof.points += earned
+  // Bank the sticker album for this earned run (guarded once via G.rewarded).
+  commitCaught(G.caughtThisRun)
   writeSave()
   // Beating a level (incl. the final one — finishing the map) ends any stuck
   // streak: the kid clearly isn't stuck on it anymore.

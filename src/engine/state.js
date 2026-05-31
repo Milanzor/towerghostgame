@@ -126,16 +126,19 @@ export function listProfiles() {
 }
 
 // ---------------------------------------------------------------------------
-// Sticker album — remember every monster kind the active player has caught.
-// Called from killEnemy on every catch; only persists on the FIRST catch of a
-// kind so a busy wave doesn't hammer localStorage. The album reads p.caught.
+// Sticker album — the kinds caught during a run are tallied in-memory on
+// G.caughtThisRun (zero save churn mid-wave) and only banked into the album
+// when the run is EARNED: a level win, or leaving the no-fail Backyard. A loss
+// or a mid-level quit banks nothing. Persists once, and only if something new
+// was actually added. The album reads p.caught.
 // ---------------------------------------------------------------------------
-export function recordCaught(type) {
+export function commitCaught(types) {
+  if (!types) return
   const p = currentProfile()
   if (!p.caught) p.caught = {}
-  if (p.caught[type]) return // already unlocked — no save churn
-  p.caught[type] = true
-  writeSave()
+  let added = false
+  for (const t of types) { if (!p.caught[t]) { p.caught[t] = true; added = true } }
+  if (added) writeSave()
 }
 
 // ---------------------------------------------------------------------------
@@ -220,6 +223,7 @@ export function newGameFromLevel(level, levelIndex, opts = {}) {
     projectiles: [],
     particles: [],
     occupied: new Set(),
+    caughtThisRun: new Set(), // sticker-album tally for this run; banked only on a win/Backyard-leave
     selectedType: null,
     selectedTower: null,
     hoverCell: null,

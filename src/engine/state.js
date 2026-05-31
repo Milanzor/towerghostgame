@@ -29,6 +29,8 @@ function makeProfile(p = {}) {
     points: Number.isFinite(p.points) ? p.points : 0,
     owned: Array.isArray(p.owned) && p.owned.length ? p.owned : ['none'],
     hat: typeof p.hat === 'string' && p.hat ? p.hat : 'none',
+    // Sticker album — set of enemy keys this player has caught at least once.
+    caught: (p.caught && typeof p.caught === 'object') ? p.caught : {},
     settings: {
       vibe: (p.settings && p.settings.vibe) || 'justright',
       playMinutes: (p.settings && Number.isFinite(p.settings.playMinutes)) ? p.settings.playMinutes : 0,
@@ -121,6 +123,19 @@ export function updateProfile(id, { name, avatar } = {}) {
 
 export function listProfiles() {
   return Object.entries(save.profiles).map(([id, p]) => ({ id, ...p }))
+}
+
+// ---------------------------------------------------------------------------
+// Sticker album — remember every monster kind the active player has caught.
+// Called from killEnemy on every catch; only persists on the FIRST catch of a
+// kind so a busy wave doesn't hammer localStorage. The album reads p.caught.
+// ---------------------------------------------------------------------------
+export function recordCaught(type) {
+  const p = currentProfile()
+  if (!p.caught) p.caught = {}
+  if (p.caught[type]) return // already unlocked — no save churn
+  p.caught[type] = true
+  writeSave()
 }
 
 // ---------------------------------------------------------------------------

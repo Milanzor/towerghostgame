@@ -1,10 +1,11 @@
 // Start screen, room picker, and the win/lose result screens.
 import { S, writeSave, newGame, newSandbox, currentProfile, setActiveProfile, addProfile, updateProfile, listProfiles, recordLoss, stuckBonusFor, resetStuck } from './state.js'
-import { LEVELS, AREAS } from '../content.js'
+import { LEVELS, AREAS, ENEMIES } from '../content.js'
 import { BACKYARD } from '../backyard.js'
 import { sfx, music } from '../audio.js'
 import { twemojify, setEmojiText } from '../emoji.js'
-import { ovStart, ovProfiles, ovSelect, ovResult, ovShop, hideAllOverlays, elLevelName, tidyBtn } from './dom.js'
+import { ovStart, ovProfiles, ovSelect, ovResult, ovShop, ovAlbum, hideAllOverlays, elLevelName, tidyBtn } from './dom.js'
+import { drawEnemyBody } from './critters.js'
 import { hideActionBar } from './towers.js'
 import { refreshPalette, showPrepBanner, hidePrepBanner } from './ui.js'
 import { AVATARS, HATS, HAT_ORDER } from '../cosmetics.js'
@@ -229,6 +230,7 @@ function showLevelSelect() {
       <h1>Your Journey</h1>
       <p>⭐ Stars collected: <b>${totalStars} / ${LEVELS.length * 3}</b></p>
       <button class="big-btn backyard-btn" id="backyardBtn">🏡 Backyard — free play, no rush!</button>
+      <button class="big-btn album-btn" id="albumBtn">📖 Sticker Album — see who you caught!</button>
       <div class="trail" id="trail">
         ${rows}
         <div class="map-token" id="mapToken">${tokenHTML(prof)}</div>
@@ -242,6 +244,7 @@ function showLevelSelect() {
   document.getElementById('avatarChip').addEventListener('click', () => { sfx.click(); showProfiles() })
   document.getElementById('shopChip').addEventListener('click', () => { sfx.click(); showShop(showLevelSelect) })
   document.getElementById('backyardBtn').addEventListener('click', () => { sfx.click(); startSandbox() })
+  document.getElementById('albumBtn').addEventListener('click', () => { sfx.click(); showAlbum(showLevelSelect) })
   for (const el of ovSelect.querySelectorAll('.lvl')) {
     const i = +el.dataset.i
     if (i > prof.unlocked) continue
@@ -641,7 +644,74 @@ function showShop(back) {
   ovShop.classList.remove('hidden')
 }
 
+// ===========================================================================
+// Sticker Album — a scrapbook of every monster kind. Caught ones show in full
+// hand-drawn colour with their name; ones never caught are blacked-out "???"
+// silhouettes to spark the "gotta catch 'em all" itch. Reads the active
+// profile's `caught` set (filled by recordCaught in killEnemy). `back` is the
+// return callback (the level select).
+// ===========================================================================
+function showAlbum(back) {
+  S.screen = 'album'
+  hideActionBar()
+  const prof = currentProfile()
+  const caught = prof.caught || {}
+  const entries = Object.entries(ENEMIES)
+  const monsters = entries.filter(([, def]) => !def.boss)
+  const bosses = entries.filter(([, def]) => def.boss)
+  const total = entries.length
+  const have = entries.filter(([key]) => caught[key]).length
+
+  const tile = ([key, def]) => {
+    const got = !!caught[key]
+    return `
+      <div class="album-tile ${got ? 'on' : 'locked'}">
+        <canvas class="album-art" width="100" height="100" data-key="${key}"></canvas>
+        <div class="album-name">${got ? def.name : '???'}</div>
+      </div>`
+  }
+  const section = (list) => list.map(tile).join('')
+
+  ovAlbum.innerHTML = `
+    <div class="card wide album-card">
+      <h1>📖 Sticker Album</h1>
+      <p>You've caught <b>${have} / ${total}</b> spooky friends! ${have >= total ? '🏆 All of them!' : 'Catch them all! 💜'}</p>
+      <h2 class="album-sub">Monsters</h2>
+      <div class="album-grid">${section(monsters)}</div>
+      <h2 class="album-sub">👑 Bosses</h2>
+      <div class="album-grid">${section(bosses)}</div>
+      <button class="big-btn green" id="albumDone">✅ Done</button>
+    </div>`
+  twemojify(ovAlbum)
+  hideAllOverlays()
+  ovAlbum.classList.remove('hidden')
+
+  // Paint each sticker onto its canvas — full colour if caught, else a dark
+  // silhouette (draw the body, then flood dark only over its pixels) with a "?".
+  for (const cv of ovAlbum.querySelectorAll('.album-art')) {
+    const key = cv.dataset.key
+    const def = ENEMIES[key]
+    const g = cv.getContext('2d')
+    const fake = { def, type: key, facing: 1, bobPhase: 0 }
+    g.save()
+    drawEnemyBody(g, fake, 50, 48, 30, 0)
+    g.restore()
+    if (!caught[key]) {
+      g.globalCompositeOperation = 'source-atop'
+      g.fillStyle = '#1c1338'
+      g.fillRect(0, 0, cv.width, cv.height)
+      g.globalCompositeOperation = 'source-over'
+      g.fillStyle = 'rgba(255,255,255,0.55)'
+      g.font = '900 38px system-ui, sans-serif'
+      g.textAlign = 'center'
+      g.textBaseline = 'middle'
+      g.fillText('?', 50, 52)
+    }
+  }
+  document.getElementById('albumDone').addEventListener('click', () => { sfx.click(); back() })
+}
+
 export {
-  showStart, showLevelSelect, win, lose, showShop, startSandbox, leaveSandbox,
+  showStart, showLevelSelect, win, lose, showShop, showAlbum, startSandbox, leaveSandbox,
   beginTidyUp, tickTidyUp,
 }

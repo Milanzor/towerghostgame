@@ -769,6 +769,45 @@ canvas {
 .hat-state.equipped { font-weight: 900; color: #ffe98a; font-size: 14px; padding: 7px 0; }
 .hat-btn img.emoji { width: 1em; height: 1em; vertical-align: -0.12em; }
 
+/* ===== Sticker Album ===== */
+.album-btn { background: linear-gradient(#ffd58a, #ffab5e); color: #5a3000; box-shadow: 0 5px 0 #c46a1e; }
+.album-btn:active { transform: translateY(2px); box-shadow: 0 3px 0 #c46a1e; }
+.album-sub {
+  font-size: clamp(16px, 4vw, 22px);
+  margin: 14px 0 6px;
+  text-shadow: 0 2px 0 #1a0f30;
+}
+.album-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin: 4px 0 6px;
+}
+@media (max-width: 560px) {
+  .album-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.album-tile {
+  background: linear-gradient(#5a4a82, #463670);
+  border: 4px solid #2a1a4a;
+  border-radius: 16px;
+  padding: 8px 4px 6px;
+  box-shadow: 0 4px 0 #1a0f30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.album-tile.on { border-color: var(--gold); box-shadow: 0 4px 0 #1a0f30, 0 0 12px rgba(255, 211, 77, 0.35); }
+.album-tile.locked { filter: saturate(.6); }
+.album-art { width: 84px; height: 84px; }
+.album-name {
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 1.2em;
+  line-height: 1.1;
+}
+.album-tile.locked .album-name { opacity: .6; letter-spacing: 2px; }
+
 /* floating action bar for a selected (placed) tower */
 .action-bar {
   position: absolute;

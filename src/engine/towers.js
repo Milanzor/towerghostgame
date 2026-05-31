@@ -159,6 +159,9 @@ function updateTowers(dt) {
     const rate = t.rateBuff || 1
 
     if (kind === 'bank') {
+      // Passive piggy-banks only earn while a wave is actually running — no free
+      // money ticking up while the kid sits in prep between waves.
+      if (S.G.phase !== 'spawning' && S.G.phase !== 'cleanup') continue
       const income = towerStat(t, 'income')
       S.G.coins += income
       floatText(t.cx, t.cy - 14, `+${income}`, '#ffd34d', 16)

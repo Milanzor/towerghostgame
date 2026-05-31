@@ -66,18 +66,21 @@ function showProfiles() {
       </button>
       <button class="profile-edit" data-edit="${p.id}" title="Change name & face" aria-label="Change ${p.name}'s name and face">✏️</button>
     </div>`).join('')
+  const empty = profiles.length === 0
   if (profiles.length < 3) {
     cards += `
       <button class="profile-card add-card" id="addProfileCard">
         <div class="pc-avatar">➕</div>
-        <div class="pc-name">Add player</div>
+        <div class="pc-name">${empty ? 'Make a player' : 'Add player'}</div>
       </button>`
   }
   ovProfiles.innerHTML = `
     <div class="card wide">
-      <h1>Who's playing?</h1>
+      <h1>${empty ? 'Welcome! 👋' : "Who's playing?"}</h1>
       <div class="profile-grid">${cards}</div>
-      <div class="hint">Tap your face to play! Each player has their own rooms and stars. 💜</div>
+      <div class="hint">${empty
+        ? 'Tap the ➕ to make your player and start catching ghosts! 💜'
+        : 'Tap your face to play! Each player has their own rooms and stars. 💜'}</div>
     </div>`
   twemojify(ovProfiles)
   hideAllOverlays()

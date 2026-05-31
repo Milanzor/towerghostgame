@@ -5,7 +5,7 @@
 // in-test assertion (check) fails.
 //
 // The circle:
-//   boot → Play → "Who's playing?" picker (§7) → world-map trail (§8: token,
+//   boot → Play → "Welcome!" picker (§7: fresh start, make a player) → world-map trail (§8: token,
 //   flag, dioramas) → Shop (§1) → Grown-up corner via the hold gate, set Cozy
 //   (§6) → enter a room → place + upgrade helpers (leveling) → clear EVERY wave
 //   to a real win (Cozy guarantees it) → tidy-up ritual + skip (§9) →
@@ -148,9 +148,14 @@ async function main() {
   check('Play button present', await cdp.eval(`!!document.getElementById('playBtn')`))
   await step('click Play', `(document.getElementById('playBtn').click(), 'ok')`)
   await sleep(400)
+  // Fresh device / post-reset → no seeded profiles; the kid makes their own.
   const nCards = await count('.profile-card[data-id]')
-  check('profile picker shown (2 seeded kids)', nCards >= 2, `${nCards} cards`)
-  await step('pick first kid', `(document.querySelector('.profile-card[data-id]').click(), 'ok')`)
+  check('fresh start has no players', nCards === 0, `${nCards} cards`)
+  check('"make a player" card present', await cdp.eval(`!!document.getElementById('addProfileCard')`))
+  await act('tap make-a-player', '#addProfileCard')
+  await sleep(300)
+  check('new-player flow shown', await cdp.eval(`!!document.getElementById('createBtn')`))
+  await act('create the player', '#createBtn')
   await sleep(400)
 
   // ===================================================================

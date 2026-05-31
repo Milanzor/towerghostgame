@@ -36,14 +36,13 @@ function makeProfile(p = {}) {
   }
 }
 
+// A brand-new device (or a full reset) starts with NO players — the first kid
+// makes their own on the "Who's playing?" screen. No pre-seeded demo profiles.
 function defaultSave() {
   return {
     version: 2,
-    activeProfile: 'p1',
-    profiles: {
-      p1: makeProfile({ name: 'Mia', avatar: 'girl' }),
-      p2: makeProfile({ name: 'Sam', avatar: 'boy' }),
-    },
+    activeProfile: null,
+    profiles: {},
   }
 }
 
@@ -56,8 +55,8 @@ function loadSave() {
         const profiles = {}
         for (const [id, p] of Object.entries(s.profiles)) profiles[id] = makeProfile(p)
         const ids = Object.keys(profiles)
-        if (ids.length === 0) return defaultSave()
-        const active = (s.activeProfile && profiles[s.activeProfile]) ? s.activeProfile : ids[0]
+        // No profiles is a valid state (fresh start) — keep it empty, don't re-seed.
+        const active = (s.activeProfile && profiles[s.activeProfile]) ? s.activeProfile : (ids[0] || null)
         return { version: 2, activeProfile: active, profiles }
       }
       // Old flat v1 shape (unlocked/stars at top level) → wrap into p1, keep progress.
@@ -85,8 +84,10 @@ export function currentProfile() {
   const p = save.profiles[save.activeProfile]
   if (p) return p
   const firstId = Object.keys(save.profiles)[0]
-  save.activeProfile = firstId
-  return save.profiles[firstId]
+  if (firstId) { save.activeProfile = firstId; return save.profiles[firstId] }
+  // No players exist yet — hand back a transient default so any stray read never
+  // crashes. Gameplay/menus that mutate a profile are only reached once one exists.
+  return makeProfile()
 }
 
 export function setActiveProfile(id) {

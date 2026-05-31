@@ -107,6 +107,17 @@ export function addProfile({ name, avatar } = {}) {
   return id
 }
 
+// Change an existing profile's name and/or face. Keeps all progress (stars,
+// unlocks, points, hats) intact — only the cosmetic identity changes.
+export function updateProfile(id, { name, avatar } = {}) {
+  const p = save.profiles[id]
+  if (!p) return false
+  if (typeof name === 'string' && name.trim()) p.name = name.trim()
+  if (avatar === 'boy' || avatar === 'girl') p.avatar = avatar
+  writeSave()
+  return true
+}
+
 export function listProfiles() {
   return Object.entries(save.profiles).map(([id, p]) => ({ id, ...p }))
 }

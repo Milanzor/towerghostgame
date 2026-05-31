@@ -1,5 +1,5 @@
 // Start screen, room picker, and the win/lose result screens.
-import { S, writeSave, newGame, newSandbox, currentProfile, setActiveProfile, addProfile, listProfiles, recordLoss, stuckBonusFor, resetStuck } from './state.js'
+import { S, writeSave, newGame, newSandbox, currentProfile, setActiveProfile, addProfile, updateProfile, listProfiles, recordLoss, stuckBonusFor, resetStuck } from './state.js'
 import { LEVELS, AREAS } from '../content.js'
 import { BACKYARD } from '../backyard.js'
 import { sfx, music } from '../audio.js'
@@ -58,11 +58,14 @@ function showProfiles() {
   music.stop()
   const profiles = listProfiles()
   let cards = profiles.map((p) => `
-    <button class="profile-card" data-id="${p.id}">
-      <div class="pc-avatar">${avatarEmoji(p)}</div>
-      <div class="pc-name">${p.name}</div>
-      <div class="pc-stars">⭐ ${totalStarsFor(p)}</div>
-    </button>`).join('')
+    <div class="profile-card-wrap">
+      <button class="profile-card" data-id="${p.id}">
+        <div class="pc-avatar">${avatarEmoji(p)}</div>
+        <div class="pc-name">${p.name}</div>
+        <div class="pc-stars">⭐ ${totalStarsFor(p)}</div>
+      </button>
+      <button class="profile-edit" data-edit="${p.id}" title="Change name & face" aria-label="Change ${p.name}'s name and face">✏️</button>
+    </div>`).join('')
   if (profiles.length < 3) {
     cards += `
       <button class="profile-card add-card" id="addProfileCard">
@@ -86,34 +89,45 @@ function showProfiles() {
       showLevelSelect()
     })
   }
+  for (const el of ovProfiles.querySelectorAll('[data-edit]')) {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation()
+      sfx.click()
+      profileEditorFlow(el.dataset.edit)
+    })
+  }
   const addBtn = document.getElementById('addProfileCard')
-  if (addBtn) addBtn.addEventListener('click', () => { sfx.click(); createProfileFlow() })
+  if (addBtn) addBtn.addEventListener('click', () => { sfx.click(); profileEditorFlow() })
 }
 
 // A few cheery default names to pre-fill the box (the kid can type their own).
 const DEFAULT_NAMES = ['Lily', 'Max', 'Zoe', 'Leo', 'Ruby', 'Finn']
 
-// New-player flow: pick a face, then type a name. Lives in the profiles overlay.
-function createProfileFlow() {
+// Pick-a-face + type-a-name flow. With no id it CREATES a new player; with an
+// existing profile id it EDITS that player's name + face (progress untouched).
+// Lives in the profiles overlay either way.
+function profileEditorFlow(editId = null) {
   S.screen = 'profiles'
   hideActionBar()
-  const used = listProfiles().map(p => p.name)
-  const suggested = DEFAULT_NAMES.find(n => !used.includes(n)) || ''
-  let chosen = 'girl'
+  const editing = editId ? listProfiles().find(p => p.id === editId) : null
+  // For a new player, suggest an unused cheery name; for an edit, prefill theirs.
+  const used = listProfiles().filter(p => p.id !== editId).map(p => p.name)
+  const suggested = editing ? editing.name : (DEFAULT_NAMES.find(n => !used.includes(n)) || '')
+  let chosen = editing ? editing.avatar : 'girl'
   const avatarChoices = Object.entries(AVATARS).map(([id, a]) => `
     <button class="avatar-pick ${chosen === id ? 'on' : ''}" data-av="${id}" aria-label="${a.name}">
       <span class="ap-face">${a.emoji}</span>
     </button>`).join('')
   ovProfiles.innerHTML = `
     <div class="card">
-      <h1>New player</h1>
+      <h1>${editing ? 'Change me!' : 'New player'}</h1>
       <p>Pick a face, then type your name! 💜</p>
       <div class="avatar-picks">${avatarChoices}</div>
       <input class="name-input" id="nameInput" type="text" maxlength="12"
              placeholder="Your name" value="${suggested}" autocomplete="off"
              autocapitalize="words" spellcheck="false" />
       <div>
-        <button class="big-btn green" id="createBtn">✅ Let's play!</button>
+        <button class="big-btn green" id="createBtn">${editing ? '💾 Save' : '✅ Let\'s play!'}</button>
         <button class="big-btn" id="createBack">↩ Back</button>
       </div>
     </div>`
@@ -129,15 +143,20 @@ function createProfileFlow() {
       for (const b of ovProfiles.querySelectorAll('[data-av]')) b.classList.toggle('on', b === el)
     })
   }
-  const create = () => {
+  const commit = () => {
     const name = (input.value || '').trim() || suggested || 'Player'
-    const id = addProfile({ name, avatar: chosen })
-    if (id) setActiveProfile(id)
-    showLevelSelect()
+    if (editing) {
+      updateProfile(editId, { name, avatar: chosen })
+      showProfiles() // back to the picker so the change is visible right away
+    } else {
+      const id = addProfile({ name, avatar: chosen })
+      if (id) setActiveProfile(id)
+      showLevelSelect()
+    }
   }
-  document.getElementById('createBtn').addEventListener('click', () => { sfx.click(); create() })
+  document.getElementById('createBtn').addEventListener('click', () => { sfx.click(); commit() })
   document.getElementById('createBack').addEventListener('click', () => { sfx.click(); showProfiles() })
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') create() })
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') commit() })
   setTimeout(() => { try { input.focus() } catch { /* ignore */ } }, 60)
 }
 
